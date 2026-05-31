@@ -1000,6 +1000,14 @@ body.embed { background: var(--paper); }
     </section>
   </div>
 
+  <!-- Shared with you (P1.4) — items other people shared with this user -->
+  <section class="shared-section" id="shared-section" hidden style="margin-bottom:28px;">
+    <div class="section-head">
+      <span class="section-label" id="shared-label">Shared with you</span>
+    </div>
+    <div id="shared-grid" class="card-grid" role="list"></div>
+  </section>
+
   <section class="items-section">
     <div class="section-head">
       <span class="section-label" id="section-label">Items</span>
@@ -1039,6 +1047,10 @@ body.embed { background: var(--paper); }
   <!-- Visibility toggle — always shown in detail view -->
   <button id="detail-vis-toggle" class="vis-toggle" title="Toggle whether this item is visible via your shared twin link">
     🔒 Private
+  </button>
+  <!-- Share control (P1.4) — person-to-person item sharing by email -->
+  <button id="detail-share-btn" class="vis-toggle" title="Share this item with another person by email">
+    👤 Share
   </button>
   <h1 class="detail-title" id="detail-title"></h1>
   <div class="detail-meta-row" id="detail-meta-row"></div>
@@ -1235,6 +1247,146 @@ async function api(path, opts = {}) {
 
 function fetchStats()    { return api('/api/library/stats'); }
 function fetchConcepts() { return api('/api/library/concepts'); }
+
+// ── Person-to-person sharing modal (P1.4) ────────────────────────────────────
+// Built on the share API: POST /api/items/:id/share, GET .../permissions,
+// DELETE .../permissions/:id. Self-contained: styles injected once, DOM built
+// in JS so there is no structural HTML to maintain.
+const SHARE_LEVELS = [
+  ['can_use',     'Can use (their twin can draw on it)'],
+  ['can_view',    'Can view'],
+  ['can_comment', 'Can comment'],
+  ['can_edit',    'Can edit'],
+  ['full_access', 'Full access'],
+];
+function _el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+function shareLevelLabel(v) { const f = SHARE_LEVELS.find(([val]) => val === v); return f ? f[1].replace(/ \(.*\)$/, '') : v; }
+function ensureShareStyles() {
+  if (document.getElementById('share-modal-styles')) return;
+  const css = _el('style');
+  css.id = 'share-modal-styles';
+  css.textContent = [
+    '.share-overlay{position:fixed;inset:0;background:rgba(15,14,13,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;}',
+    '.share-modal{background:var(--card,#fff);border:1px solid var(--line,#e8e2d4);border-radius:14px;width:100%;max-width:460px;max-height:85vh;overflow:auto;padding:22px 22px 18px;box-shadow:0 20px 60px rgba(0,0,0,.18);}',
+    '.share-modal h3{font-family:"Source Serif 4",Georgia,serif;font-size:20px;margin:0 0 2px;}',
+    '.share-sub{color:var(--muted,#857c6e);font-size:13px;margin:0 0 16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+    '.share-row{display:flex;gap:8px;margin-bottom:10px;}',
+    '.share-row input[type=email]{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line,#e8e2d4);border-radius:8px;font:inherit;}',
+    '.share-modal select{padding:9px 11px;border:1px solid var(--line,#e8e2d4);border-radius:8px;font:inherit;background:#fff;max-width:170px;}',
+    '.share-send{padding:9px 14px;border:none;border-radius:8px;background:var(--ink,#0f0e0d);color:#fff;font:inherit;font-weight:600;cursor:pointer;}',
+    '.share-send:disabled{opacity:.5;cursor:default;}',
+    '.share-list{list-style:none;margin:6px 0 0;padding:0;}',
+    '.share-list li{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line,#e8e2d4);font-size:14px;}',
+    '.share-email{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+    '.share-lvl{color:var(--muted,#857c6e);font-size:12px;}',
+    '.share-pending-tag{color:var(--yellow-deep,#f5c500);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;}',
+    '.share-revoke{border:none;background:none;color:var(--muted,#857c6e);cursor:pointer;font-size:16px;padding:0 4px;}',
+    '.share-revoke:hover{color:#c0392b;}',
+    '.share-section-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#857c6e);margin:16px 0 0;}',
+    '.share-foot{display:flex;justify-content:flex-end;margin-top:18px;}',
+    '.share-close{border:1px solid var(--line,#e8e2d4);background:#fff;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer;}',
+    '.share-msg{font-size:13px;margin:6px 0 0;min-height:1em;}',
+    '.share-msg.err{color:#c0392b;}.share-msg.ok{color:#2e7d32;}',
+  ].join('');
+  document.head.appendChild(css);
+}
+async function openShareModal(itemId, itemTitle) {
+  ensureShareStyles();
+  const overlay = _el('div', 'share-overlay');
+  const modal   = _el('div', 'share-modal');
+  overlay.appendChild(modal);
+  const close = () => { document.removeEventListener('keydown', onKey); overlay.remove(); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  modal.appendChild(_el('h3', null, 'Share this item'));
+  modal.appendChild(_el('p', 'share-sub', itemTitle || ''));
+
+  const row   = _el('div', 'share-row');
+  const email = _el('input'); email.type = 'email'; email.placeholder = 'their@email.com'; email.autocomplete = 'off';
+  const lvl   = _el('select');
+  SHARE_LEVELS.forEach(([v, label]) => { const o = _el('option', null, label); o.value = v; lvl.appendChild(o); });
+  const send  = _el('button', 'share-send', 'Share'); send.type = 'button';
+  row.appendChild(email); row.appendChild(lvl); row.appendChild(send);
+  modal.appendChild(row);
+
+  const msg = _el('p', 'share-msg', '');
+  modal.appendChild(msg);
+  const listWrap = _el('div');
+  modal.appendChild(listWrap);
+
+  const foot = _el('div', 'share-foot');
+  const closeBtn = _el('button', 'share-close', 'Done'); closeBtn.type = 'button'; closeBtn.onclick = close;
+  foot.appendChild(closeBtn);
+  modal.appendChild(foot);
+
+  document.body.appendChild(overlay);
+  email.focus();
+
+  function grantRow(emailStr, level, id, pending) {
+    const li = _el('li');
+    li.appendChild(_el('span', 'share-email', emailStr));
+    if (pending) li.appendChild(_el('span', 'share-pending-tag', 'pending'));
+    li.appendChild(_el('span', 'share-lvl', shareLevelLabel(level)));
+    const rm = _el('button', 'share-revoke', '×'); rm.type = 'button'; rm.title = 'Revoke access';
+    rm.onclick = async () => {
+      rm.disabled = true;
+      try {
+        await api('/api/items/' + encodeURIComponent(itemId) + '/permissions/' + encodeURIComponent(id), { method: 'DELETE' });
+        await refresh();
+      } catch (err) { msg.textContent = 'Could not revoke: ' + (err.message || ''); msg.className = 'share-msg err'; rm.disabled = false; }
+    };
+    li.appendChild(rm);
+    return li;
+  }
+
+  async function refresh() {
+    listWrap.innerHTML = '';
+    let data;
+    try {
+      data = await api('/api/items/' + encodeURIComponent(itemId) + '/permissions');
+    } catch (e) {
+      if (e.status === 403) { msg.textContent = 'Only the owner can manage sharing for this item.'; msg.className = 'share-msg err'; row.style.display = 'none'; }
+      else { msg.textContent = 'Could not load sharing: ' + (e.message || ''); msg.className = 'share-msg err'; }
+      return;
+    }
+    const grants = data.grants || [], pending = data.pending || [];
+    if (grants.length) {
+      listWrap.appendChild(_el('p', 'share-section-label', 'Shared with'));
+      const ul = _el('ul', 'share-list');
+      grants.forEach(g => ul.appendChild(grantRow(g.email, g.level, g.permission_id, false)));
+      listWrap.appendChild(ul);
+    }
+    if (pending.length) {
+      listWrap.appendChild(_el('p', 'share-section-label', 'Pending invitations'));
+      const ul = _el('ul', 'share-list');
+      pending.forEach(p => ul.appendChild(grantRow(p.email, p.level, p.invitation_id, true)));
+      listWrap.appendChild(ul);
+    }
+    if (!grants.length && !pending.length) listWrap.appendChild(_el('p', 'share-sub', 'Not shared with anyone yet.'));
+  }
+
+  send.onclick = async () => {
+    const addr = (email.value || '').trim();
+    if (!addr) { msg.textContent = 'Enter an email address.'; msg.className = 'share-msg err'; return; }
+    send.disabled = true; msg.textContent = ''; msg.className = 'share-msg';
+    try {
+      const res = await api('/api/items/' + encodeURIComponent(itemId) + '/share', {
+        method: 'POST', body: JSON.stringify({ email: addr, level: lvl.value }),
+      });
+      msg.textContent = res.mode === 'invited' ? ('Invitation sent to ' + addr + '.') : ('Shared with ' + addr + '.');
+      msg.className = 'share-msg ok';
+      email.value = '';
+      await refresh();
+    } catch (err) {
+      msg.textContent = err.status === 403 ? 'Sign in to share an item.' : ('Could not share: ' + (err.message || ''));
+      msg.className = 'share-msg err';
+    } finally { send.disabled = false; }
+  };
+
+  await refresh();
+}
 
 function fetchItems() {
   const p = new URLSearchParams({ sort: state.sort, limit: state.limit, offset: state.offset });
@@ -1537,6 +1689,8 @@ function setBrainView(view) {
   if (hero)     hero.hidden     = wiki;
   if (meta)     meta.hidden     = wiki;
   if (items)    items.hidden    = wiki;
+  const shared = eid('shared-section');
+  if (shared)   shared.hidden   = wiki || !state.hasSharedItems;
   if (concepts) concepts.hidden = !wiki;
   if (desc) {
     desc.textContent = wiki
@@ -1581,6 +1735,47 @@ function makeCard(item) {
   return card;
 }
 
+// ── Shared with you (P1.4) ───────────────────────────────────────────────────
+// Items other people shared with this user (GET /api/library/shared). Read-only
+// indicator: shows title, owner, access level and date. The actual use happens
+// in chat retrieval, so these cards are informational and not openable.
+async function loadSharedWithMe() {
+  const section = eid('shared-section');
+  const grid    = eid('shared-grid');
+  if (!section || !grid) return;
+  try {
+    const { items } = await api('/api/library/shared');
+    state.hasSharedItems = !!(items && items.length);
+    if (!state.hasSharedItems) { section.hidden = true; grid.innerHTML = ''; return; }
+    eid('shared-label').textContent = 'Shared with you · ' + items.length;
+    grid.innerHTML = '';
+    items.forEach(it => grid.appendChild(makeSharedCard(it)));
+    section.hidden = state.brainView === 'wiki';
+  } catch (e) {
+    console.error('[library] shared fetch failed:', e);
+    state.hasSharedItems = false;
+    section.hidden = true;
+  }
+}
+
+function makeSharedCard(item) {
+  const card = el('article', 'page-card ' + stripClass(item.type));
+  card.setAttribute('role', 'listitem');
+  card.appendChild(el('span', 'card-eyebrow', typeLabel(item.type)));
+  card.appendChild(el('h3', 'card-title', item.title || 'Untitled'));
+  if (item.summary) card.appendChild(el('p', 'card-snippet', item.summary));
+  const meta = el('div', 'card-meta');
+  meta.appendChild(el('span', 'card-meta-date', shortDate(item.created_at)));
+  meta.appendChild(el('span', 'card-meta-sep', '·'));
+  meta.appendChild(el('span', 'vis-badge vis-sharable', '👤 ' + shareLevelLabel(item.level)));
+  if (item.owner_email) {
+    meta.appendChild(el('span', 'card-meta-sep', '·'));
+    meta.appendChild(el('span', 'card-meta-owner', 'from ' + item.owner_email));
+  }
+  card.appendChild(meta);
+  return card;
+}
+
 // ── Items section (fetch + render) ─────────────────────────────────────────
 
 async function renderItemsSection(append = false) {
@@ -1622,6 +1817,7 @@ async function loadIndex() {
     fetchStats().then(renderStats).catch(err => console.error('[library] stats fetch failed:', err)),
     loadConceptSections(),
     renderItemsSection(),
+    loadSharedWithMe(),
   ]);
   // Apply the active Wiki/Library view (Library by default).
   setBrainView(state.brainView);
@@ -1757,6 +1953,7 @@ async function loadDetail(id) {
   eid('detail-vis-toggle').textContent = '🔒 Private';
   eid('detail-vis-toggle').disabled = false;
   eid('detail-vis-toggle').onclick = null;
+  if (eid('detail-share-btn')) eid('detail-share-btn').onclick = null;
   eid('detail-download-btn').hidden = true;
   eid('detail-download-btn').onclick = null;
   eid('detail-type-pill').textContent = '';
@@ -1801,6 +1998,9 @@ async function loadDetail(id) {
       }
     }
     syncVisBtn(currentVis);
+    // Share control (P1.4): open the person-to-person share modal for this item.
+    const shareBtn = eid('detail-share-btn');
+    if (shareBtn) shareBtn.onclick = () => openShareModal(item.id, cardTitle(item));
     visBtn.onclick = async () => {
       const next = currentVis === 'sharable' ? 'private' : 'sharable';
       visBtn.disabled = true;

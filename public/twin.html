@@ -2865,6 +2865,81 @@ async function loadVoiceStudio() {
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────
+// ── Share invitation accept (P1.4) ───────────────────────────────────────────
+// Opened from /twin?invite=<token> (the link in a share email). Public endpoints:
+// GET /api/invitations/:token exposes only the item title and type; POST the
+// accept route provisions the recipient, materialises the grant, and sets the
+// session cookie. Possessing the token proves control of the invited email.
+function shareLevelLabelTwin(v) {
+  const m = { can_view: 'Can view', can_comment: 'Can comment', can_use: 'Can use', can_edit: 'Can edit', full_access: 'Full access' };
+  return m[v] || v;
+}
+function ensureInviteStyles() {
+  if (document.getElementById('invite-styles')) return;
+  const css = el('style');
+  css.id = 'invite-styles';
+  css.textContent = [
+    '.invite-overlay{position:fixed;inset:0;background:rgba(15,14,13,.5);display:flex;align-items:center;justify-content:center;z-index:2000;padding:20px;}',
+    '.invite-card{background:#fff;border:1.5px solid var(--ink,#0f0e0d);border-radius:16px;max-width:440px;width:100%;padding:28px 26px 22px;box-shadow:0 24px 70px rgba(0,0,0,.22);}',
+    '.invite-eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#857c6e);margin-bottom:8px;}',
+    '.invite-title{font-family:"Source Serif 4",Georgia,serif;font-size:26px;line-height:1.15;margin:0 0 6px;}',
+    '.invite-type{font-size:12px;letter-spacing:.04em;color:var(--muted,#857c6e);margin-bottom:14px;}',
+    '.invite-body{font-size:14px;line-height:1.5;color:var(--ink-2,#3a352e);margin:0 0 12px;}',
+    '.invite-msg{font-size:13px;min-height:1em;margin:0 0 8px;}.invite-msg.err{color:#c0392b;}.invite-msg.ok{color:#2e7d32;}',
+    '.invite-actions{display:flex;gap:10px;justify-content:flex-end;}',
+    '.invite-accept{background:var(--yellow,#ffe34a);border:1.5px solid var(--ink,#0f0e0d);border-radius:9px;padding:10px 20px;font:inherit;font-weight:700;cursor:pointer;}',
+    '.invite-accept:disabled{opacity:.5;cursor:default;}',
+    '.invite-dismiss{background:#fff;border:1px solid var(--line,#e8e2d4);border-radius:9px;padding:10px 16px;font:inherit;cursor:pointer;}',
+  ].join('');
+  document.head.appendChild(css);
+}
+async function handleShareInvite(token) {
+  let inv;
+  try {
+    const res = await fetch('/api/invitations/' + encodeURIComponent(token));
+    if (!res.ok) return; // expired / already used / not found: chat still loads
+    inv = await res.json();
+  } catch { return; }
+  if (!inv || !inv.item) return;
+
+  ensureInviteStyles();
+  const overlay = el('div', 'invite-overlay');
+  const card = el('div', 'invite-card');
+  overlay.appendChild(card);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  const who = inv.invited_by_email ? (inv.invited_by_email + ' shared something with you') : 'Someone shared something with you';
+  card.appendChild(el('div', 'invite-eyebrow', who));
+  card.appendChild(el('h2', 'invite-title', inv.item.title || 'A shared item'));
+  card.appendChild(el('div', 'invite-type', (inv.item.type ? inv.item.type.toUpperCase() : 'ITEM') + (inv.level ? (' · ' + shareLevelLabelTwin(inv.level)) : '')));
+  card.appendChild(el('p', 'invite-body', 'Accept to add it to your twin. If you do not have an account yet, accepting creates one for ' + (inv.email || 'your email') + '.'));
+
+  const msg = el('p', 'invite-msg', '');
+  card.appendChild(msg);
+
+  const actions = el('div', 'invite-actions');
+  const accept = el('button', 'invite-accept', 'Accept'); accept.type = 'button';
+  const dismiss = el('button', 'invite-dismiss', 'Not now'); dismiss.type = 'button'; dismiss.onclick = close;
+  accept.onclick = async () => {
+    accept.disabled = true; dismiss.disabled = true; msg.textContent = 'Accepting…'; msg.className = 'invite-msg';
+    try {
+      const r = await fetch('/api/invitations/' + encodeURIComponent(token) + '/accept', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) { const e = new Error(body.error || ('HTTP ' + r.status)); e.status = r.status; throw e; }
+      msg.textContent = 'Done. Loading your twin…'; msg.className = 'invite-msg ok';
+      setTimeout(() => { window.location.href = '/twin?signedin=1'; }, 700);
+    } catch (e) {
+      msg.textContent = e.status === 410 ? 'This invitation was already used.' : ('Could not accept: ' + (e.message || ''));
+      msg.className = 'invite-msg err';
+      accept.disabled = false; dismiss.disabled = false;
+    }
+  };
+  actions.appendChild(accept); actions.appendChild(dismiss);
+  card.appendChild(actions);
+  document.body.appendChild(overlay);
+}
+
 (async function init() {
   // Apply any already-stored auth state immediately (no flicker)
   updateHeader();
@@ -2880,6 +2955,11 @@ async function loadVoiceStudio() {
 
     if (isClaimed || isSignedIn) history.replaceState({}, '', '/twin');
     if (wantVoice) { history.replaceState({}, '', '/twin'); switchTab('voice'); }
+
+    // Share invitation deep link (P1.4): /twin?invite=<token>. Show the accept
+    // overlay; the chat still loads underneath so this is non-blocking.
+    const inviteToken = params.get('invite');
+    if (inviteToken) { history.replaceState({}, '', '/twin'); handleShareInvite(inviteToken); }
 
     if (isSignedIn && !sessionStorage.getItem('signin_greeting_shown')) {
       sessionStorage.setItem('signin_greeting_shown', '1');
