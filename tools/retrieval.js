@@ -2,7 +2,7 @@ import { getDB } from '../lib/supabase.js';
 import { getNamespace } from '../lib/pinecone.js';
 import { embed } from '../lib/embed.js';
 import { formatDisplayRef } from '../lib/display-ref.js';
-import { getAccessibleSharedItems } from '../lib/permissions.js';
+import { getAccessibleSharedItems, getMemberWorkspaces } from '../lib/permissions.js';
 
 // ── Token frugality ──────────────────────────────────────────────────────────
 // Anthropic policy: retrieval responses must be proportionate to the task.
@@ -51,6 +51,29 @@ async function querySharedNamespaces(shared, embedding, baseFilter, topK) {
   return (await Promise.all(queries)).flat();
 }
 
+// Fan out one vector query across every org workspace namespace this user is a
+// member of. Membership authorises reading the whole workspace, so unlike shared
+// items there is no id restriction. A failing workspace namespace never breaks
+// the user's own search.
+async function queryWorkspaceNamespaces(memberWs, embedding, baseFilter, topK) {
+  const queries = [];
+  for (const [wsTenantId] of memberWs.byTenant) {
+    queries.push(
+      getNamespace(wsTenantId).query({
+        vector: embedding,
+        topK,
+        includeMetadata: true,
+        filter: baseFilter && Object.keys(baseFilter).length ? baseFilter : undefined,
+      }).then(r => r.matches || []).catch(e => {
+        console.error(`[retrieval] workspace namespace ${wsTenantId} query failed:`, e.message);
+        return [];
+      })
+    );
+  }
+  if (!queries.length) return [];
+  return (await Promise.all(queries)).flat();
+}
+
 // Merge match lists, rank by score desc, dedupe by knowledge_id, cap to `limit`.
 // An item id is either own or shared (a vector lives in exactly one namespace),
 // so dedupe never collides across the trust boundary.
@@ -81,9 +104,11 @@ export async function searchTwin(ctx, { query, top_k = 10, type }) {
 
   const ownFilter = type ? { type } : undefined;
 
-  // Own namespace + (permission-aware) shared owner namespaces, in parallel.
-  const shared = await getAccessibleSharedItems(ctx);
-  const [ownRes, sharedMatches] = await Promise.all([
+  // Own namespace + (permission-aware) shared owner namespaces + org workspace
+  // namespaces this user is a member of, all in parallel.
+  const shared   = await getAccessibleSharedItems(ctx);
+  const memberWs = await getMemberWorkspaces(ctx);
+  const [ownRes, sharedMatches, wsMatches] = await Promise.all([
     getNamespace(ctx.tenantId).query({
       vector: embedding,
       topK: k,
@@ -91,14 +116,21 @@ export async function searchTwin(ctx, { query, top_k = 10, type }) {
       filter: ownFilter,
     }),
     querySharedNamespaces(shared, embedding, type ? { type } : {}, k),
+    queryWorkspaceNamespaces(memberWs, embedding, type ? { type } : {}, k),
   ]);
 
-  const top = rankDedupeMatches([ownRes.matches || [], sharedMatches], k);
+  const top = rankDedupeMatches([ownRes.matches || [], sharedMatches, wsMatches], k);
   if (!top.length) return { results: [], query, count: 0 };
 
-  const topIds   = top.map(m => m.metadata.knowledge_id);
-  const ownIds    = topIds.filter(id => !shared.idSet.has(id));
+  // Workspace items are the ones whose vector carried a workspace_id (only the
+  // contribution path sets it). A vector lives in exactly one namespace, so
+  // own / shared / workspace id sets never overlap.
+  const wsItemIds = new Set(wsMatches.map(m => m.metadata?.knowledge_id).filter(Boolean));
+
+  const topIds    = top.map(m => m.metadata.knowledge_id);
   const sharedIds = topIds.filter(id => shared.idSet.has(id));
+  const wsIds     = topIds.filter(id => wsItemIds.has(id) && !shared.idSet.has(id));
+  const ownIds    = topIds.filter(id => !shared.idSet.has(id) && !wsItemIds.has(id));
 
   const rowMap = {};
   if (ownIds.length) {
@@ -114,12 +146,17 @@ export async function searchTwin(ctx, { query, top_k = 10, type }) {
     const { data: sharedRows } = await db.from('knowledge').select('*').in('id', sharedIds);
     for (const r of sharedRows || []) rowMap[r.id] = { row: r, shared: true, level: shared.levelById.get(r.id) };
   }
+  if (wsIds.length) {
+    // Workspace membership is the authorisation; fetch by id across the org tenant.
+    const { data: wsRows } = await db.from('knowledge').select('*').in('id', wsIds);
+    for (const r of wsRows || []) rowMap[r.id] = { row: r, workspace: true, workspace_id: r.workspace_id };
+  }
 
   const items = top
     .map(m => {
       const entry = rowMap[m.metadata.knowledge_id];
       if (!entry) return null;
-      const { row, shared: isShared, level } = entry;
+      const { row, shared: isShared, level, workspace: isWs } = entry;
       // Search payload is summary-only: title, type, one-line summary, source,
       // date, tags. Full content is reachable via list_recent / update_knowledge.
       return {
@@ -132,6 +169,7 @@ export async function searchTwin(ctx, { query, top_k = 10, type }) {
         relevance: Math.round((m.score || 0) * 100),
         shared: !!isShared,
         ...(isShared ? { access_level: level } : {}),
+        ...(isWs ? { workspace: true, workspace_id: entry.workspace_id } : {}),
       };
     })
     .filter(Boolean);

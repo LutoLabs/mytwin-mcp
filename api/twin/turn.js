@@ -387,6 +387,7 @@ function buildKnowledgeBlock(items, tagName = 'untrusted_knowledge') {
       // Phase 1: items someone else shared with the user (can_use+). Flagged so
       // the model attributes them as shared, never as the user's own thinking.
       r.shared ? `Shared with you by another person (${r.access_level || 'can_use'})` : '',
+      r.workspace ? 'From a shared workspace library (organisational content, not your personal thinking). Attribute it to the workspace, never as your own.' : '',
     ].filter(Boolean).join('\n');
   }).join('\n\n---\n\n');
   return `<${tagName}>\n${body}\n</${tagName}>\n\n`;
@@ -408,6 +409,7 @@ function citationsFor(items) {
     // else. The frontend renders a "shared" badge (Sub-phase 4).
     shared:       r.shared || false,
     ...(r.shared ? { access_level: r.access_level || 'can_use' } : {}),
+    ...(r.workspace ? { workspace: true, workspace_id: r.workspace_id } : {}),
   }));
 }
 
