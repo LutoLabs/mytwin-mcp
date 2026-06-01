@@ -891,6 +891,7 @@ body.embed { background: var(--paper); }
     <div class="header-right">
       <a href="/create" class="signin-link" id="lib-signin-link">Sign in</a>
       <a href="/twin/profile" class="signin-link" id="lib-account-link" hidden></a>
+      <a href="/account.html" class="signin-link" id="lib-workspaces-link" hidden>Workspaces</a>
     </div>
   </div>
 </header>
@@ -2304,6 +2305,8 @@ async function syncHeaderAuth() {
     acct.hidden = !isAuth;
     if (isAuth && email) acct.textContent = email.length > 24 ? email.slice(0, 22) + '…' : email;
   }
+  const wsl = document.getElementById('lib-workspaces-link');
+  if (wsl) wsl.hidden = !isAuth; // Workspaces hub lives on /account.html (P2/P3)
 }
 
 (async function init() {
