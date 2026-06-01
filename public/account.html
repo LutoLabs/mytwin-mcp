@@ -264,6 +264,19 @@ header.site-header {
       </div>
     </div>
 
+    <!-- Workspaces (P2 S-F) -->
+    <div class="section">
+      <div class="section-label">Organisation Workspaces</div>
+      <p class="section-meta" style="margin-bottom:12px">Shared spaces where a team contributes knowledge. Every member's twin can draw on what the workspace holds. Your personal twin stays yours.</p>
+      <div id="ws-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="ws-new-name" placeholder="New workspace name" maxlength="80"
+          style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--line,#E8E2D4);border-radius:8px;font:inherit;background:var(--paper,#FDFCFA)">
+        <button type="button" class="btn btn-primary" id="ws-create-btn">Create</button>
+      </div>
+      <div id="ws-msg" style="font-size:13px;margin-top:8px;min-height:1em"></div>
+    </div>
+
     <!-- Sign out -->
     <div class="section">
       <button type="button" class="btn btn-secondary" id="signout-btn">Sign out</button>
@@ -457,6 +470,162 @@ document.getElementById('delete-confirm-btn')?.addEventListener('click', async (
   }
 });
 
+// ── Organisation workspaces (P2 S-F) ────────────────────────────────────────
+async function wsFetch(path, opts = {}) {
+  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) { const e = new Error(body.error || ('HTTP ' + res.status)); e.status = res.status; throw e; }
+  return body;
+}
+
+function ensureWsStyles() {
+  if (document.getElementById('ws-styles')) return;
+  const css = document.createElement('style');
+  css.id = 'ws-styles';
+  css.textContent = [
+    '.ws-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line,#E8E2D4);border-radius:8px;background:var(--card,#fff);}',
+    '.ws-row-name{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+    '.ws-row-meta{font-size:12px;color:var(--muted,#857C6E);}',
+    '.ws-overlay{position:fixed;inset:0;background:rgba(15,14,13,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;}',
+    '.ws-modal{background:var(--card,#fff);border:1px solid var(--line,#E8E2D4);border-radius:14px;width:100%;max-width:480px;max-height:85vh;overflow:auto;padding:22px;}',
+    '.ws-modal h3{font-family:Georgia,serif;font-size:20px;margin:0 0 2px;}',
+    '.ws-mlist{list-style:none;margin:8px 0 0;padding:0;}',
+    '.ws-mlist li{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line,#E8E2D4);font-size:14px;}',
+    '.ws-memail{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+    '.ws-role{font-size:12px;color:var(--muted,#857C6E);text-transform:capitalize;}',
+    '.ws-pending{font-size:11px;color:var(--yellow-deep,#F5C500);font-weight:600;text-transform:uppercase;}',
+    '.ws-x{border:none;background:none;color:var(--muted,#857C6E);cursor:pointer;font-size:16px;padding:0 4px;}',
+    '.ws-x:hover{color:var(--red,#c0392b);}',
+    '.ws-add{display:flex;gap:8px;margin-top:16px;}',
+    '.ws-add input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--line,#E8E2D4);border-radius:8px;font:inherit;}',
+    '.ws-add select{padding:8px;border:1px solid var(--line,#E8E2D4);border-radius:8px;font:inherit;background:#fff;}',
+    '.ws-msg2{font-size:13px;margin-top:8px;min-height:1em;}',
+    '.ws-section-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#857C6E);margin:16px 0 0;}',
+  ].join('');
+  document.head.appendChild(css);
+}
+
+function renderWorkspaces(list) {
+  const wrap = document.getElementById('ws-list');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (!list || !list.length) {
+    const p = document.createElement('p'); p.className = 'section-meta';
+    p.textContent = 'No workspaces yet. Create one below to start a shared space.';
+    wrap.appendChild(p); return;
+  }
+  list.forEach(w => {
+    const row = document.createElement('div'); row.className = 'ws-row';
+    const name = document.createElement('span'); name.className = 'ws-row-name'; name.textContent = w.name; row.appendChild(name);
+    const meta = document.createElement('span'); meta.className = 'ws-row-meta';
+    meta.textContent = (w.member_count || 1) + ' member' + ((w.member_count || 1) !== 1 ? 's' : '') + ' · ' + w.role;
+    row.appendChild(meta);
+    const btn = document.createElement('button'); btn.className = 'btn btn-secondary'; btn.textContent = 'Manage';
+    btn.onclick = () => openWorkspaceManage(w); row.appendChild(btn);
+    wrap.appendChild(row);
+  });
+}
+
+async function loadWorkspaces() {
+  ensureWsStyles();
+  try { renderWorkspaces((await wsFetch('/api/workspaces')).workspaces || []); }
+  catch (e) { console.error('[account] workspaces load failed:', e.message); }
+}
+
+async function openWorkspaceManage(ws) {
+  ensureWsStyles();
+  const canManage = ws.role === 'owner' || ws.role === 'admin';
+  const overlay = document.createElement('div'); overlay.className = 'ws-overlay';
+  const modal = document.createElement('div'); modal.className = 'ws-modal';
+  overlay.appendChild(modal);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  const h = document.createElement('h3'); h.textContent = ws.name; modal.appendChild(h);
+  const sub = document.createElement('p'); sub.className = 'section-meta'; sub.textContent = 'Your role: ' + ws.role; modal.appendChild(sub);
+  const listWrap = document.createElement('div'); modal.appendChild(listWrap);
+  const msg = document.createElement('p'); msg.className = 'ws-msg2'; modal.appendChild(msg);
+
+  if (canManage) {
+    const add = document.createElement('div'); add.className = 'ws-add';
+    const email = document.createElement('input'); email.type = 'email'; email.placeholder = 'teammate@email.com'; email.autocomplete = 'off';
+    const role = document.createElement('select');
+    [['member', 'Member'], ['admin', 'Admin']].forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; role.appendChild(o); });
+    const addBtn = document.createElement('button'); addBtn.className = 'btn btn-primary'; addBtn.textContent = 'Add';
+    addBtn.onclick = async () => {
+      const addr = (email.value || '').trim();
+      if (!addr) { msg.textContent = 'Enter an email.'; return; }
+      addBtn.disabled = true; msg.textContent = '';
+      try {
+        const r = await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/members', { method: 'POST', body: JSON.stringify({ email: addr, role: role.value }) });
+        msg.textContent = r.mode === 'invited' ? ('Invitation sent to ' + addr + '.') : ('Added ' + addr + '.');
+        email.value = ''; await refresh();
+      } catch (e) { msg.textContent = 'Could not add: ' + (e.message || ''); }
+      finally { addBtn.disabled = false; }
+    };
+    add.appendChild(email); add.appendChild(role); add.appendChild(addBtn);
+    modal.appendChild(add);
+  }
+
+  const foot = document.createElement('div'); foot.style.cssText = 'display:flex;justify-content:flex-end;margin-top:16px';
+  const doneBtn = document.createElement('button'); doneBtn.className = 'btn btn-secondary'; doneBtn.textContent = 'Done';
+  doneBtn.onclick = () => { close(); loadWorkspaces(); };
+  foot.appendChild(doneBtn); modal.appendChild(foot);
+  document.body.appendChild(overlay);
+
+  async function refresh() {
+    listWrap.innerHTML = '';
+    let data;
+    try { data = await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/members'); }
+    catch (e) { msg.textContent = 'Could not load members: ' + (e.message || ''); return; }
+    const ul = document.createElement('ul'); ul.className = 'ws-mlist';
+    (data.members || []).forEach(m => {
+      const li = document.createElement('li');
+      const em = document.createElement('span'); em.className = 'ws-memail'; em.textContent = m.email || '(unknown)'; li.appendChild(em);
+      const r = document.createElement('span'); r.className = 'ws-role'; r.textContent = m.role; li.appendChild(r);
+      if (data.can_manage && m.role !== 'owner') {
+        const x = document.createElement('button'); x.className = 'ws-x'; x.textContent = '×'; x.title = 'Remove';
+        x.onclick = async () => {
+          x.disabled = true;
+          try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/members/' + encodeURIComponent(m.user_id), { method: 'DELETE' }); await refresh(); }
+          catch (e) { msg.textContent = 'Could not remove: ' + (e.message || ''); x.disabled = false; }
+        };
+        li.appendChild(x);
+      }
+      ul.appendChild(li);
+    });
+    listWrap.appendChild(ul);
+    if ((data.pending || []).length) {
+      listWrap.appendChild(Object.assign(document.createElement('p'), { className: 'ws-section-label', textContent: 'Pending invitations' }));
+      const pul = document.createElement('ul'); pul.className = 'ws-mlist';
+      data.pending.forEach(p => {
+        const li = document.createElement('li');
+        const em = document.createElement('span'); em.className = 'ws-memail'; em.textContent = p.email; li.appendChild(em);
+        const tag = document.createElement('span'); tag.className = 'ws-pending'; tag.textContent = 'pending'; li.appendChild(tag);
+        pul.appendChild(li);
+      });
+      listWrap.appendChild(pul);
+    }
+  }
+
+  await refresh();
+}
+
+document.getElementById('ws-create-btn')?.addEventListener('click', async () => {
+  const input = document.getElementById('ws-new-name');
+  const msg = document.getElementById('ws-msg');
+  const name = (input.value || '').trim();
+  if (!name) { msg.textContent = 'Enter a workspace name.'; return; }
+  const btn = document.getElementById('ws-create-btn');
+  btn.disabled = true; msg.textContent = '';
+  try {
+    await wsFetch('/api/workspaces', { method: 'POST', body: JSON.stringify({ name }) });
+    input.value = ''; msg.textContent = 'Workspace created.';
+    await loadWorkspaces();
+  } catch (e) { msg.textContent = 'Could not create: ' + (e.message || ''); }
+  finally { btn.disabled = false; }
+});
+
 // ── Boot ───────────────────────────────────────────────────────────────────
 (async function init() {
   const ok = await checkAuth();
@@ -467,6 +636,7 @@ document.getElementById('delete-confirm-btn')?.addEventListener('click', async (
     document.getElementById('loading').hidden = true;
     document.getElementById('account-content').hidden = false;
     renderAccount(data);
+    loadWorkspaces();
   } catch (err) {
     document.getElementById('loading').textContent = 'Could not load account. Try refreshing.';
   }

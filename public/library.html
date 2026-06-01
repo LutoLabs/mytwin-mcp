@@ -890,7 +890,7 @@ body.embed { background: var(--paper); }
     </a>
     <div class="header-right">
       <a href="/create" class="signin-link" id="lib-signin-link">Sign in</a>
-      <a href="/twin/account" class="signin-link" id="lib-account-link" hidden></a>
+      <a href="/twin/profile" class="signin-link" id="lib-account-link" hidden></a>
     </div>
   </div>
 </header>
@@ -1051,6 +1051,10 @@ body.embed { background: var(--paper); }
   <!-- Share control (P1.4) — person-to-person item sharing by email -->
   <button id="detail-share-btn" class="vis-toggle" title="Share this item with another person by email">
     👤 Share
+  </button>
+  <!-- Contribute control (P2 S-F) — copy this item into an org workspace -->
+  <button id="detail-contribute-btn" class="vis-toggle" title="Contribute this item to an organisation workspace">
+    🏢 Contribute
   </button>
   <h1 class="detail-title" id="detail-title"></h1>
   <div class="detail-meta-row" id="detail-meta-row"></div>
@@ -1290,6 +1294,67 @@ function ensureShareStyles() {
   ].join('');
   document.head.appendChild(css);
 }
+// Contribute an item to one of the user's org workspaces (P2 S-F). Copy into the
+// workspace namespace, one-directional. Reuses the share-modal styling.
+async function openContributeModal(itemId, itemTitle) {
+  ensureShareStyles();
+  const overlay = _el('div', 'share-overlay');
+  const modal   = _el('div', 'share-modal');
+  overlay.appendChild(modal);
+  const close = () => { document.removeEventListener('keydown', onKey); overlay.remove(); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  modal.appendChild(_el('h3', null, 'Contribute to a workspace'));
+  modal.appendChild(_el('p', 'share-sub', itemTitle || ''));
+  const listWrap = _el('div');
+  modal.appendChild(listWrap);
+  const msg = _el('p', 'share-msg', '');
+  modal.appendChild(msg);
+
+  const foot = _el('div', 'share-foot');
+  const closeBtn = _el('button', 'share-close', 'Done'); closeBtn.type = 'button'; closeBtn.onclick = close;
+  foot.appendChild(closeBtn);
+  modal.appendChild(foot);
+  document.body.appendChild(overlay);
+
+  try {
+    const { workspaces } = await api('/api/workspaces');
+    if (!workspaces || !workspaces.length) {
+      const p = _el('p', 'share-sub', 'You are not in an organisation workspace yet. ');
+      const a = _el('a', null, 'Manage workspaces'); a.href = '/twin/profile'; a.style.textDecoration = 'underline';
+      p.appendChild(a);
+      listWrap.appendChild(p);
+      return;
+    }
+    const ul = _el('ul', 'share-list');
+    workspaces.forEach(w => {
+      const li = _el('li');
+      li.appendChild(_el('span', 'share-email', w.name));
+      li.appendChild(_el('span', 'share-lvl', (w.member_count || 1) + ' member' + ((w.member_count || 1) !== 1 ? 's' : '')));
+      const btn = _el('button', 'share-send', 'Contribute'); btn.type = 'button';
+      btn.onclick = async () => {
+        btn.disabled = true; msg.textContent = ''; msg.className = 'share-msg';
+        try {
+          await api('/api/workspaces/' + encodeURIComponent(w.id) + '/contribute', { method: 'POST', body: JSON.stringify({ item_id: itemId }) });
+          msg.textContent = 'Contributed to ' + w.name + '.'; msg.className = 'share-msg ok';
+          btn.textContent = 'Contributed';
+        } catch (e) {
+          msg.textContent = (e.status === 400 && /already/i.test(e.message || '')) ? 'Already in that workspace.' : ('Could not contribute: ' + (e.message || ''));
+          msg.className = 'share-msg err'; btn.disabled = false;
+        }
+      };
+      li.appendChild(btn);
+      ul.appendChild(li);
+    });
+    listWrap.appendChild(ul);
+  } catch (e) {
+    msg.textContent = e.status === 403 ? 'Sign in to use workspaces.' : ('Could not load workspaces: ' + (e.message || ''));
+    msg.className = 'share-msg err';
+  }
+}
+
 async function openShareModal(itemId, itemTitle) {
   ensureShareStyles();
   const overlay = _el('div', 'share-overlay');
@@ -1954,6 +2019,7 @@ async function loadDetail(id) {
   eid('detail-vis-toggle').disabled = false;
   eid('detail-vis-toggle').onclick = null;
   if (eid('detail-share-btn')) eid('detail-share-btn').onclick = null;
+  if (eid('detail-contribute-btn')) eid('detail-contribute-btn').onclick = null;
   eid('detail-download-btn').hidden = true;
   eid('detail-download-btn').onclick = null;
   eid('detail-type-pill').textContent = '';
@@ -2001,6 +2067,8 @@ async function loadDetail(id) {
     // Share control (P1.4): open the person-to-person share modal for this item.
     const shareBtn = eid('detail-share-btn');
     if (shareBtn) shareBtn.onclick = () => openShareModal(item.id, cardTitle(item));
+    const contribBtn = eid('detail-contribute-btn');
+    if (contribBtn) contribBtn.onclick = () => openContributeModal(item.id, cardTitle(item));
     visBtn.onclick = async () => {
       const next = currentVis === 'sharable' ? 'private' : 'sharable';
       visBtn.disabled = true;
