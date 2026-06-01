@@ -567,7 +567,19 @@ async function openWorkspaceManage(ws) {
     modal.appendChild(add);
   }
 
-  const foot = document.createElement('div'); foot.style.cssText = 'display:flex;justify-content:flex-end;margin-top:16px';
+  const foot = document.createElement('div'); foot.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px';
+  if (ws.role === 'owner') {
+    const del = document.createElement('button'); del.className = 'btn btn-danger'; del.textContent = 'Delete workspace';
+    del.onclick = async () => {
+      if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Click again to confirm'; return; }
+      del.disabled = true;
+      try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id), { method: 'DELETE' }); close(); loadWorkspaces(); }
+      catch (e) { msg.textContent = 'Could not delete: ' + (e.message || ''); del.disabled = false; del.textContent = 'Delete workspace'; del.dataset.armed = ''; }
+    };
+    foot.appendChild(del);
+  } else {
+    foot.appendChild(document.createElement('span'));
+  }
   const doneBtn = document.createElement('button'); doneBtn.className = 'btn btn-secondary'; doneBtn.textContent = 'Done';
   doneBtn.onclick = () => { close(); loadWorkspaces(); };
   foot.appendChild(doneBtn); modal.appendChild(foot);
@@ -602,10 +614,37 @@ async function openWorkspaceManage(ws) {
         const li = document.createElement('li');
         const em = document.createElement('span'); em.className = 'ws-memail'; em.textContent = p.email; li.appendChild(em);
         const tag = document.createElement('span'); tag.className = 'ws-pending'; tag.textContent = 'pending'; li.appendChild(tag);
+        if (data.can_manage) {
+          const x = document.createElement('button'); x.className = 'ws-x'; x.textContent = '×'; x.title = 'Cancel invitation';
+          x.onclick = async () => {
+            x.disabled = true;
+            try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/invitations/' + encodeURIComponent(p.invitation_id), { method: 'DELETE' }); await refresh(); }
+            catch (e) { msg.textContent = 'Could not cancel: ' + (e.message || ''); x.disabled = false; }
+          };
+          li.appendChild(x);
+        }
         pul.appendChild(li);
       });
       listWrap.appendChild(pul);
     }
+
+    // Workspace items (contributed knowledge), read-only.
+    try {
+      const items = (await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/items')).items || [];
+      listWrap.appendChild(Object.assign(document.createElement('p'), { className: 'ws-section-label', textContent: 'Shared items (' + items.length + ')' }));
+      if (!items.length) {
+        listWrap.appendChild(Object.assign(document.createElement('p'), { className: 'section-meta', textContent: 'No items contributed yet. Contribute from your library.' }));
+      } else {
+        const iul = document.createElement('ul'); iul.className = 'ws-mlist';
+        items.forEach(it => {
+          const li = document.createElement('li');
+          li.appendChild(Object.assign(document.createElement('span'), { className: 'ws-memail', textContent: it.title || 'Untitled' }));
+          li.appendChild(Object.assign(document.createElement('span'), { className: 'ws-role', textContent: it.type }));
+          iul.appendChild(li);
+        });
+        listWrap.appendChild(iul);
+      }
+    } catch (e) { /* non-fatal */ }
   }
 
   await refresh();
