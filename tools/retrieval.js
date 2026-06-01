@@ -119,13 +119,19 @@ export async function searchTwin(ctx, { query, top_k = 10, type }) {
     queryWorkspaceNamespaces(memberWs, embedding, type ? { type } : {}, k),
   ]);
 
-  const top = rankDedupeMatches([ownRes.matches || [], sharedMatches, wsMatches], k);
+  // Phase 3: drop workspace items this user is denied by a group restriction.
+  const deniedItemIds = memberWs.deniedItemIds || new Set();
+  const wsMatchesAllowed = deniedItemIds.size
+    ? wsMatches.filter(m => !deniedItemIds.has(m.metadata?.knowledge_id))
+    : wsMatches;
+
+  const top = rankDedupeMatches([ownRes.matches || [], sharedMatches, wsMatchesAllowed], k);
   if (!top.length) return { results: [], query, count: 0 };
 
   // Workspace items are the ones whose vector carried a workspace_id (only the
   // contribution path sets it). A vector lives in exactly one namespace, so
   // own / shared / workspace id sets never overlap.
-  const wsItemIds = new Set(wsMatches.map(m => m.metadata?.knowledge_id).filter(Boolean));
+  const wsItemIds = new Set(wsMatchesAllowed.map(m => m.metadata?.knowledge_id).filter(Boolean));
 
   const topIds    = top.map(m => m.metadata.knowledge_id);
   const sharedIds = topIds.filter(id => shared.idSet.has(id));
