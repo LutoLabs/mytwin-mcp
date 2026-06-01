@@ -10,7 +10,7 @@
     { "source": "/docs",           "destination": "/docs.html" },
     { "source": "/twin",           "destination": "/twin.html" },
     { "source": "/try",            "destination": "/twin.html" },
-    { "source": "/twin/account",   "destination": "/account.html" },
+    { "source": "/twin/profile",   "destination": "/profile.html" },
     { "source": "/twin/library",   "destination": "/library.html" },
     { "source": "/twin/library/concept/:id", "destination": "/concept.html" },
     { "source": "/mcp",                                    "destination": "/api/mcp" },
@@ -24,7 +24,8 @@
     { "source": "/dashboard",      "destination": "/create", "permanent": true },
     { "source": "/mcp/:userId",    "destination": "/create",  "permanent": true },
     { "source": "/admin",          "destination": "/", "permanent": true },
-    { "source": "/admin.html",     "destination": "/", "permanent": true }
+    { "source": "/admin.html",     "destination": "/", "permanent": true },
+    { "source": "/twin/account",   "destination": "/twin/profile", "permanent": false }
   ],
   "functions": {
     "api/mcp/[token].js":                  { "maxDuration": 60  },
@@ -69,6 +70,7 @@
     "api/auth/signout.js":                 { "maxDuration": 10  },
     "api/account/index.js":                { "maxDuration": 15  },
     "api/account/shared-token.js":         { "maxDuration": 15  },
+    "api/profile/placeholder-fill.js":     { "maxDuration": 60  },
     "api/items/[id]/share.js":             { "maxDuration": 15  },
     "api/items/[id]/permissions/index.js": { "maxDuration": 10  },
     "api/items/[id]/permissions/[permissionId].js": { "maxDuration": 10 },

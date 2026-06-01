@@ -99,6 +99,76 @@ header.site-header {
   color: var(--dim); font-size: 12.5px; letter-spacing: 0.03em;
 }
 #hypergraph-status .hg-line2 { color: var(--dim-2); margin-top: 8px; font-size: 11px; }
+#hypergraph-status { z-index: 4; }
+
+/* three.js layers (sub-phase 3) */
+#hypergraph-container #scene { position: absolute; inset: 0; z-index: 0; }
+#hypergraph-container #scene canvas { display: block; cursor: grab; }
+body.grabbing, body.grabbing #hypergraph-container #scene canvas { cursor: grabbing !important; }
+#hypergraph-container #atmosphere {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(ellipse 95% 95% at 50% 50%, transparent 38%, rgba(5,6,14,0.6) 100%);
+}
+#hypergraph-container #grain {
+  position: absolute; inset: -50%; z-index: 2; pointer-events: none; opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: hg-grain 9s steps(6) infinite;
+}
+@keyframes hg-grain { 0%,100% { transform: translate(0,0); } 50% { transform: translate(2%,-2%); } }
+
+#tip {
+  position: fixed; z-index: 40; pointer-events: none;
+  padding: 11px 14px; border-radius: 10px;
+  background: rgba(9,11,24,0.92); border: 1px solid rgba(150,160,220,0.2);
+  backdrop-filter: blur(12px);
+  font-size: 12px; color: var(--ink); max-width: 280px;
+  opacity: 0; transform: translateY(5px);
+  transition: opacity 0.14s, transform 0.14s;
+}
+#tip .tt { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 4px; }
+#tip .tg { margin-top: 7px; font-size: 9.5px; color: var(--dim); letter-spacing: 0.04em; line-height: 1.6; }
+
+/* Placeholder "+" / "×" overlays projected onto ghost nodes (sub-phase 4) */
+.ph-overlay {
+  position: fixed; z-index: 41; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  font-family: 'Spline Sans Mono', monospace; font-weight: 500; font-size: 15px;
+  color: var(--ink); background: rgba(9,11,24,0.7); border: 1px solid rgba(150,160,220,0.35);
+  transform: translate(-50%, -50%) scale(0.7); opacity: 0;
+  transition: opacity 0.14s, transform 0.14s;
+}
+.ph-overlay.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.ph-overlay.ph-add { pointer-events: auto; cursor: pointer; }
+.ph-overlay.ph-add:hover { background: var(--yellow); color: var(--bg); border-color: rgba(0,0,0,0.4); }
+.ph-overlay.ph-dismiss { pointer-events: auto; cursor: pointer; font-size: 13px; transform: translate(50%, -50%) scale(0.7); }
+.ph-overlay.ph-dismiss.show { transform: translate(50%, -50%) scale(1); }
+.ph-overlay.ph-dismiss:hover { background: rgba(255,93,122,0.25); border-color: var(--red); color: var(--red); }
+
+/* Fill modal */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  background: rgba(2,3,9,0.72); backdrop-filter: blur(4px);
+}
+.modal-card {
+  width: 100%; max-width: 520px;
+  background: #0a0c1a; border: 1px solid var(--line); border-radius: 16px;
+  padding: 28px 28px 24px;
+}
+.modal-eyebrow { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.16em; color: var(--dim); }
+.modal-title {
+  font-family: 'Fraunces', Georgia, serif; font-size: 1.5rem; font-weight: 400;
+  letter-spacing: -0.01em; color: var(--ink); margin-top: 6px;
+}
+.modal-hint { font-size: 12.5px; color: var(--dim); margin-top: 8px; line-height: 1.55; }
+.modal-textarea {
+  width: 100%; margin-top: 16px; min-height: 150px; resize: vertical;
+  font-family: inherit; font-size: 13.5px; line-height: 1.6; padding: 14px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink);
+}
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.modal-error { color: var(--red); font-size: 12px; margin-top: 10px; }
 
 /* ── Page body ─────────────────────────────────────────────────────────── */
 .page-wrap { max-width: 1100px; margin: 0 auto; padding: 36px 32px 96px; }
@@ -236,12 +306,33 @@ header.site-header {
   </div>
 </header>
 
-<!-- Hypergraph stage (renderer arrives in sub-phase 3) -->
+<!-- Hypergraph stage -->
 <div id="hypergraph-container">
+  <div id="scene"></div>
+  <div id="atmosphere"></div>
+  <div id="grain"></div>
   <div id="hypergraph-status">
     <div>
       <div class="hg-line1">Loading your hypergraph…</div>
       <div class="hg-line2" id="hg-detail"></div>
+    </div>
+  </div>
+</div>
+<div id="tip"></div>
+<div id="ph-add" class="ph-overlay ph-add">+</div>
+<div id="ph-dismiss" class="ph-overlay ph-dismiss">×</div>
+
+<!-- Placeholder fill modal -->
+<div id="ph-modal" class="modal-backdrop" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="ph-modal-title">
+    <div class="modal-eyebrow">Seed your twin</div>
+    <div class="modal-title" id="ph-modal-title">—</div>
+    <div class="modal-hint" id="ph-modal-hint"></div>
+    <textarea class="modal-textarea" id="ph-modal-input" placeholder="Write freely. A few sentences is plenty to start."></textarea>
+    <div class="modal-error" id="ph-modal-error" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="ph-modal-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="ph-modal-save">Add to twin</button>
     </div>
   </div>
 </div>
@@ -332,10 +423,22 @@ header.site-header {
   </div>
 </main>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
 
 const APP_URL = 'https://myaitwin.lutolearn.com';
+
+// Domain palette (mirrors the render spec's DOMAIN_COLOR; numeric for three.js).
+const DOMAIN_COLOR = {
+  'Vision & positioning':       0xFFD400,
+  'Twin architecture':          0x00E0C6,
+  'Voice & craft':              0xFF3D8B,
+  'Roadmap & product build':    0x5B8CFF,
+  'Orchestration & automation': 0xFF7A1A,
+  'Capability & clients':       0xA85CFF,
+};
+const DOMAIN_KEYS = Object.keys(DOMAIN_COLOR);
 
 function escapeHtml(s) {
   return String(s == null ? '' : s)
@@ -380,6 +483,8 @@ function plural(n, word) { return `${n} ${word}${n === 1 ? '' : 's'}`; }
 let _currentTokens = [];
 let _newRawToken   = null;
 let _isOwner       = false;
+let _phById        = {};   // placeholder id -> def, kept fresh by renderHypergraph
+let _phModalId     = null; // placeholder being filled in the modal
 
 // ── Chrome: identity + stats + settings read-state ───────────────────────────
 async function loadProfile() {
@@ -417,25 +522,527 @@ function renderProfile(data) {
   }
 }
 
-// ── Hypergraph data wiring (renderer is sub-phase 3) ─────────────────────────
+// ── Hypergraph data wiring ───────────────────────────────────────────────────
+let _hgDispose = null;
 async function loadHypergraph() {
+  const status = document.getElementById('hypergraph-status');
   const detail = document.getElementById('hg-detail');
   try {
     const res = await fetch('/api/profile/hypergraph');
     if (!res.ok) throw new Error('graph ' + res.status);
     const g = await res.json();
     const n = (g.nodes || []).length;
-    const e = (g.edges || []).length;
-    document.querySelector('#hypergraph-status .hg-line1').textContent =
-      n === 0 ? 'Your hypergraph is empty for now.' : 'Hypergraph ready.';
-    detail.textContent = n === 0
-      ? 'Add knowledge to your twin to grow the graph.'
-      : `${plural(n, 'node')} · ${plural(e, 'edge')} · renderer arrives in sub-phase 3`;
+    const ph = (g.placeholders || []).length;
+    if (n === 0 && ph === 0) {
+      // Nothing to show: a recipient's empty graph, or an owner who has filled
+      // or dismissed every placeholder slot.
+      if (_hgDispose) { _hgDispose(); _hgDispose = null; }
+      status.hidden = false;
+      document.querySelector('#hypergraph-status .hg-line1').textContent = 'Your hypergraph is empty for now.';
+      detail.textContent = 'Add knowledge to your twin to grow the graph.';
+      return;
+    }
+    status.hidden = true;
+    if (_hgDispose) { _hgDispose(); _hgDispose = null; }
+    _hgDispose = renderHypergraph(g);
   } catch (err) {
+    if (_hgDispose) { _hgDispose(); _hgDispose = null; }
+    status.hidden = false;
     document.querySelector('#hypergraph-status .hg-line1').textContent = 'Could not load the hypergraph.';
     detail.textContent = 'Try refreshing.';
   }
 }
+
+// ── three.js renderer (render spec, container-scoped) ────────────────────────
+function renderHypergraph(graph) {
+  const SPREAD = 50, JITTER_MULT = 23, GAP = 2.0, ITER = 120;
+  const container = document.getElementById('hypergraph-container');
+  const sceneEl = container.querySelector('#scene');
+
+  // Build the item shape the renderer needs from the API payload.
+  // domain: from the domains block (node_ids index into nodes).
+  // idx: array index. siblings: indices sharing >=1 tag.
+  const apiNodes = graph.nodes || [];
+  const nodeDomain = new Array(apiNodes.length).fill(DOMAIN_KEYS[0]);
+  const domains = graph.domains || {};
+  for (const d of Object.keys(domains)) {
+    if (!DOMAIN_COLOR[d]) continue;
+    for (const i of (domains[d].node_ids || [])) {
+      if (i >= 0 && i < apiNodes.length) nodeDomain[i] = d;
+    }
+  }
+  const tagSets = apiNodes.map(n => new Set((n.tags || []).map(t => String(t).toLowerCase())));
+  const siblingsOf = (i) => {
+    const out = [];
+    for (let j = 0; j < tagSets.length; j++) {
+      if (j === i) continue;
+      for (const t of tagSets[i]) { if (tagSets[j].has(t)) { out.push(j); break; } }
+    }
+    return out;
+  };
+  const ITEMS = apiNodes.map((n, idx) => ({
+    id:       n.id,
+    title:    n.title || '(untitled)',
+    domain:   nodeDomain[idx],
+    tags:     n.tags || [],
+    degree:   n.degree || 0,
+    idx,
+    siblings: siblingsOf(idx),
+  }));
+  // Defensive: keep only edges whose both endpoints are in range (induced subgraph).
+  const EDGES = (graph.edges || []).filter(e =>
+    e.i >= 0 && e.j >= 0 && e.i < ITEMS.length && e.j < ITEMS.length && e.i !== e.j);
+
+  // Scene / camera / renderer (container-scoped).
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x05060e, 0.005);
+  const camera = new THREE.PerspectiveCamera(58, container.clientWidth / container.clientHeight, 0.1, 4000);
+  camera.position.set(0, 0, 150);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  sceneEl.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0x404a66, 1.1));
+  const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(1, 1.2, 1); scene.add(key);
+  const fill = new THREE.DirectionalLight(0x88aaff, 0.5); fill.position.set(-1, -0.5, -0.5); scene.add(fill);
+  const group = new THREE.Group(); scene.add(group);
+
+  // Domain anchors (golden-ratio spread).
+  const domainAnchor = {};
+  DOMAIN_KEYS.forEach((d, i) => {
+    const golden = 2.399963;
+    const y = 1 - (i / (DOMAIN_KEYS.length - 1)) * 2;
+    const r = Math.sqrt(Math.max(0, 1 - y * y));
+    const th = golden * i;
+    domainAnchor[d] = new THREE.Vector3(Math.cos(th) * r, y * 0.85, Math.sin(th) * r).multiplyScalar(SPREAD);
+  });
+
+  function hashVec(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    const a = (h % 1000) / 1000 * 6.283;
+    const b = ((h >>> 10) % 1000) / 1000 * Math.PI;
+    return new THREE.Vector3(Math.sin(b) * Math.cos(a), Math.sin(b) * Math.sin(a), Math.cos(b));
+  }
+
+  function makeHalo() {
+    const S = 128;
+    const c = document.createElement('canvas'); c.width = c.height = S;
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(S/2, S/2, S * 0.18, S/2, S/2, S/2);
+    grd.addColorStop(0, 'rgba(255,255,255,0.5)');
+    grd.addColorStop(0.5, 'rgba(255,255,255,0.12)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, S, S);
+    return new THREE.CanvasTexture(c);
+  }
+  const haloTex = makeHalo();
+
+  const nodes = [];
+  const maxDeg = Math.max(1, ...ITEMS.map(it => it.degree));
+  ITEMS.forEach((it) => {
+    const v = domainAnchor[it.domain].clone();
+    v.add(hashVec(it.id).multiplyScalar(JITTER_MULT));
+    const col = new THREE.Color(DOMAIN_COLOR[it.domain] || 0xFFD400);
+    const size = 2.2 + (it.degree / maxDeg) * 2.6;
+    const mat = new THREE.MeshStandardMaterial({
+      color: col, emissive: col.clone().multiplyScalar(0.35), roughness: 0.45, metalness: 0.1,
+    });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(size, 32, 32), mat);
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: haloTex, color: col, transparent: true,
+      blending: THREE.AdditiveBlending, opacity: 0.4, depthWrite: false,
+    }));
+    const hs = size * 3.2;
+    halo.scale.set(hs, hs, 1);
+    body.position.copy(v); halo.position.copy(v);
+    group.add(body); group.add(halo);
+    nodes.push({
+      it, body, halo, mat, color: col.getHex(),
+      baseEmissive: 0.35, baseSize: size, baseHalo: hs, base: v.clone(), glow: 0,
+    });
+  });
+
+  // Separation relaxation.
+  (function relax() {
+    for (let pass = 0; pass < ITER; pass++) {
+      let moved = false;
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i].base, b = nodes[j].base;
+          const need = nodes[i].baseSize + nodes[j].baseSize + GAP;
+          const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+          let d = Math.sqrt(dx*dx + dy*dy + dz*dz);
+          if (d < 1e-4) { b.x += 0.5; b.y -= 0.3; b.z += 0.2; d = 0.6; }
+          if (d < need) {
+            const push = (need - d) / 2;
+            const ux = dx/d, uy = dy/d, uz = dz/d;
+            a.x -= ux*push; a.y -= uy*push; a.z -= uz*push;
+            b.x += ux*push; b.y += uy*push; b.z += uz*push;
+            moved = true;
+          }
+        }
+      }
+      if (!moved) break;
+    }
+    nodes.forEach(n => { n.body.position.copy(n.base); n.halo.position.copy(n.base); });
+  })();
+
+  // Edges (cylinders).
+  const _up = new THREE.Vector3(0, 1, 0);
+  const edges = [];
+  const maxSh = Math.max(1, ...EDGES.map(e => e.strength));
+  EDGES.forEach(e => {
+    const strength = e.strength / maxSh;
+    const blend = new THREE.Color(nodes[e.i].color).lerp(new THREE.Color(nodes[e.j].color), 0.5);
+    const r = 0.08 + strength * 0.10;
+    const op = 0.22 + strength * 0.25;
+    const mesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, 1, 6, 1, true),
+      new THREE.MeshBasicMaterial({ color: blend, transparent: true, opacity: op, depthWrite: false }),
+    );
+    group.add(mesh);
+    edges.push({ e, mesh, baseOp: op });
+  });
+  function orient(mesh, a, b) {
+    const dir = new THREE.Vector3().subVectors(b, a);
+    const len = dir.length();
+    mesh.position.copy(a).addScaledVector(dir, 0.5);
+    mesh.scale.set(1, len, 1);
+    mesh.quaternion.setFromUnitVectors(_up, dir.clone().normalize());
+  }
+  edges.forEach(ed => orient(ed.mesh, nodes[ed.e.i].base, nodes[ed.e.j].base));
+
+  // Starfield.
+  const sg = new THREE.BufferGeometry();
+  const sn = 600;
+  const sp = new Float32Array(sn * 3);
+  for (let i = 0; i < sn; i++) {
+    const r = 320 + Math.random() * 800;
+    const t = Math.random() * 6.28;
+    const p = Math.acos(2 * Math.random() - 1);
+    sp.set([ r*Math.sin(p)*Math.cos(t), r*Math.sin(p)*Math.sin(t), r*Math.cos(p) ], i * 3);
+  }
+  sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({
+    color: 0x8088bb, size: 1.1, transparent: true, opacity: 0.5,
+  })));
+
+  // Empty-state placeholder ghosts (owner, near-empty). Seven fixed golden-ratio
+  // slots on a smaller sphere (SPREAD * 0.85). Differentiated: low opacity body,
+  // dim halo, and a translucent wireframe shell. Hover reveals "+" / "×" overlays.
+  const PH_SLOTS = 7;
+  function phAnchor(slot) {
+    const golden = 2.399963;
+    const y = 1 - (slot / (PH_SLOTS - 1)) * 2;
+    const r = Math.sqrt(Math.max(0, 1 - y * y));
+    const th = golden * slot;
+    return new THREE.Vector3(Math.cos(th) * r, y * 0.85, Math.sin(th) * r).multiplyScalar(SPREAD * 0.85);
+  }
+  const phNodes = [];
+  _phById = {};
+  (graph.placeholders || []).forEach(p => {
+    _phById[p.id] = p;
+    const v = phAnchor(p.slot);
+    const col = new THREE.Color(Number(p.color) || 0xFFD400);
+    const size = 3.0;
+    const mat = new THREE.MeshStandardMaterial({
+      color: col, emissive: col.clone().multiplyScalar(0.25),
+      roughness: 0.6, metalness: 0.05, transparent: true, opacity: 0.4,
+    });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(size, 24, 24), mat);
+    const shell = new THREE.Mesh(
+      new THREE.SphereGeometry(size * 1.18, 16, 16),
+      new THREE.MeshBasicMaterial({ color: col, wireframe: true, transparent: true, opacity: 0.22 }),
+    );
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: haloTex, color: col, transparent: true,
+      blending: THREE.AdditiveBlending, opacity: 0.25, depthWrite: false,
+    }));
+    const hs = size * 3.0; halo.scale.set(hs, hs, 1);
+    body.position.copy(v); shell.position.copy(v); halo.position.copy(v);
+    group.add(body); group.add(shell); group.add(halo);
+    phNodes.push({ p, body, shell, halo, mat, base: v.clone(), baseHalo: hs, glow: 0 });
+  });
+
+  // Interaction. All window-level listeners use this signal so a re-render
+  // (after a placeholder fill/dismiss) tears them down instead of stacking.
+  const ac = new AbortController();
+  const sig = ac.signal;
+  let userRotX = 0.15, userRotY = 0;
+  let dragging = false, lastX = 0, lastY = 0;
+  let tZoom = 150;
+  let autoYaw = 0;
+  let downX = 0, downY = 0;
+  const dom = renderer.domElement;
+  dom.addEventListener('pointerdown', e => {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    downX = e.clientX; downY = e.clientY;
+    document.body.classList.add('grabbing');
+  }, { signal: sig });
+  addEventListener('pointerup', e => {
+    dragging = false; document.body.classList.remove('grabbing');
+    // A click (negligible drag) on a placeholder opens its fill modal.
+    if (hoveredPh && Math.hypot(e.clientX - downX, e.clientY - downY) < 5) {
+      openPhModal(hoveredPh.p.id);
+    }
+  }, { signal: sig });
+  addEventListener('pointermove', e => {
+    hover(e);
+    if (!dragging) return;
+    userRotY += (e.clientX - lastX) * 0.005;
+    userRotX += (e.clientY - lastY) * 0.005;
+    userRotX = Math.max(-1.4, Math.min(1.4, userRotX));
+    lastX = e.clientX; lastY = e.clientY;
+  }, { signal: sig });
+  dom.addEventListener('wheel', e => {
+    e.preventDefault();
+    tZoom += e.deltaY * 0.06;
+    tZoom = Math.max(70, Math.min(300, tZoom));
+  }, { passive: false, signal: sig });
+
+  // Placeholder overlays (+ to fill, × to dismiss). Kept visible while the
+  // pointer is over the ghost node OR over either overlay button (hover grace).
+  const addBtn = document.getElementById('ph-add');
+  const disBtn = document.getElementById('ph-dismiss');
+  let hoveredPh = null;
+  let phHideTimer = null;
+  function phShow(n) {
+    clearTimeout(phHideTimer);
+    hoveredPh = n;
+    addBtn.dataset.ph = n.p.id; disBtn.dataset.ph = n.p.id;
+    addBtn.classList.add('show'); disBtn.classList.add('show');
+  }
+  function phHideSoon() {
+    clearTimeout(phHideTimer);
+    phHideTimer = setTimeout(() => {
+      hoveredPh = null;
+      addBtn.classList.remove('show'); disBtn.classList.remove('show');
+    }, 160);
+  }
+  for (const b of [addBtn, disBtn]) {
+    b.addEventListener('mouseenter', () => clearTimeout(phHideTimer), { signal: sig });
+    b.addEventListener('mouseleave', phHideSoon, { signal: sig });
+  }
+
+  // Hover tooltip. Titles are user data — built with textContent to avoid injection.
+  const ray = new THREE.Raycaster();
+  const mvec = new THREE.Vector2();
+  const tip = document.getElementById('tip');
+  let hovered = null;
+  function hideTip() { tip.style.opacity = 0; tip.style.transform = 'translateY(5px)'; }
+  function hover(e) {
+    const rect = dom.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+      hovered = null; hideTip(); phHideSoon();
+      dom.style.cursor = dragging ? 'grabbing' : 'grab';
+      return;
+    }
+    mvec.x = (x / rect.width) * 2 - 1;
+    mvec.y = -(y / rect.height) * 2 + 1;
+    ray.setFromCamera(mvec, camera);
+
+    // Real nodes take precedence over placeholder ghosts.
+    const hits = ray.intersectObjects(nodes.map(n => n.body), false);
+    if (hits.length) {
+      const n = nodes.find(nd => nd.body === hits[0].object);
+      hovered = n; phHideSoon();
+      tip.style.left = (e.clientX + 16) + 'px';
+      tip.style.top = (e.clientY + 14) + 'px';
+      const c = '#' + new THREE.Color(n.color).getHexString();
+      const head = document.createElement('div');
+      head.className = 'tt'; head.style.color = c;
+      head.textContent = `${n.it.domain} · ${plural(n.it.degree, 'link')}`;
+      const title = document.createElement('div');
+      title.textContent = n.it.title;
+      const tg = document.createElement('div');
+      tg.className = 'tg';
+      tg.textContent = n.it.tags.slice(0, 7).join('  ·  ');
+      tip.replaceChildren(head, title, tg);
+      tip.style.opacity = 1; tip.style.transform = 'translateY(0)';
+      dom.style.cursor = 'pointer';
+      return;
+    }
+
+    // Placeholder ghosts.
+    hovered = null;
+    const phHits = phNodes.length ? ray.intersectObjects(phNodes.map(n => n.body), false) : [];
+    if (phHits.length) {
+      const n = phNodes.find(nd => nd.body === phHits[0].object);
+      phShow(n);
+      tip.style.left = (e.clientX + 16) + 'px';
+      tip.style.top = (e.clientY + 14) + 'px';
+      const head = document.createElement('div');
+      head.className = 'tt'; head.style.color = '#' + new THREE.Color(Number(n.p.color) || 0xFFD400).getHexString();
+      head.textContent = 'Empty slot';
+      const title = document.createElement('div');
+      title.textContent = n.p.label;
+      const tg = document.createElement('div');
+      tg.className = 'tg';
+      tg.textContent = 'Tap to add  ·  × to dismiss';
+      tip.replaceChildren(head, title, tg);
+      tip.style.opacity = 1; tip.style.transform = 'translateY(0)';
+      dom.style.cursor = 'pointer';
+    } else {
+      hideTip(); phHideSoon();
+      dom.style.cursor = dragging ? 'grabbing' : 'grab';
+    }
+  }
+
+  // Animation loop.
+  const clock = new THREE.Clock();
+  const _wp = new THREE.Vector3();
+  let running = true;
+  (function animate() {
+    if (!running) return;
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    autoYaw += dt * 0.05;
+    group.rotation.y = userRotY + autoYaw;
+    group.rotation.x = userRotX;
+    camera.position.z += (tZoom - camera.position.z) * 0.06;
+    const hn = hovered ? new Set(hovered.it.siblings) : null;
+    nodes.forEach((n, i) => {
+      let tg = 0;
+      if (hovered) { if (n === hovered) tg = 1; else if (hn.has(i)) tg = 0.5; }
+      n.glow += (tg - n.glow) * 0.2;
+      n.body.scale.setScalar((1 + n.glow * 0.35));
+      n.mat.emissive.setHex(n.color);
+      n.mat.emissive.multiplyScalar(n.baseEmissive + n.glow * 0.5);
+      const dim = (hovered && n !== hovered && !hn.has(i)) ? 0.5 : 1;
+      n.mat.opacity = dim; n.mat.transparent = dim < 1;
+      n.halo.material.opacity = (0.35 + n.glow * 0.5) * dim;
+      n.halo.scale.setScalar(n.baseHalo * (1 + n.glow * 0.3));
+    });
+    edges.forEach(ed => {
+      let op = ed.baseOp;
+      if (hovered) {
+        const on = (ed.e.i === hovered.it.idx || ed.e.j === hovered.it.idx);
+        op = on ? Math.min(0.9, ed.baseOp * 2.4) : ed.baseOp * 0.25;
+      }
+      ed.mesh.material.opacity = op;
+    });
+    phNodes.forEach(n => {
+      const tg = (hoveredPh === n) ? 1 : 0;
+      n.glow += (tg - n.glow) * 0.2;
+      n.body.scale.setScalar(1 + n.glow * 0.25);
+      n.shell.scale.setScalar(1 + n.glow * 0.25);
+      n.mat.opacity = 0.4 + n.glow * 0.35;
+      n.halo.material.opacity = 0.25 + n.glow * 0.4;
+    });
+    // Project the hovered placeholder to screen and pin its overlays there.
+    if (hoveredPh) {
+      hoveredPh.body.getWorldPosition(_wp).project(camera);
+      const rect = dom.getBoundingClientRect();
+      const sx = rect.left + (_wp.x * 0.5 + 0.5) * rect.width;
+      const sy = rect.top + (-_wp.y * 0.5 + 0.5) * rect.height;
+      addBtn.style.left = sx + 'px'; addBtn.style.top = sy + 'px';
+      disBtn.style.left = sx + 'px'; disBtn.style.top = sy + 'px';
+    }
+    renderer.render(scene, camera);
+  })();
+
+  addEventListener('resize', () => {
+    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth, container.clientHeight);
+  }, { signal: sig });
+
+  // Teardown for re-render (placeholder fill/dismiss). Stops the loop, drops all
+  // window listeners, frees the GL context, and clears transient overlays.
+  return function dispose() {
+    running = false;
+    clearTimeout(phHideTimer);
+    ac.abort();
+    hideTip();
+    addBtn.classList.remove('show'); disBtn.classList.remove('show');
+    renderer.dispose();
+    if (dom.parentNode) dom.parentNode.removeChild(dom);
+  };
+}
+
+// ── Placeholder fill / dismiss (sub-phase 4) ─────────────────────────────────
+const PH_HINTS = {
+  'writing-voice':        'Paste a few lines you have written, or describe your tone. How do you sound?',
+  'brand-spec':           'Colours, fonts, logo rules, the feel of your brand. Anything you have decided.',
+  'operating-principles': 'The rules you work by. What you optimise for, what you refuse to do.',
+  'key-frameworks':       'A model, method, or mental framework you reach for often.',
+  'professional-context': 'Your role, who you work with, the world you operate in.',
+  'projects-in-flight':   'What you are building right now, and where each one stands.',
+  'people-and-contacts':  'Key people, what they do, and how they relate to your work.',
+};
+function openPhModal(id) {
+  const def = _phById[id];
+  if (!def) return;
+  _phModalId = id;
+  document.getElementById('ph-modal-title').textContent = def.label;
+  document.getElementById('ph-modal-hint').textContent =
+    PH_HINTS[id] || 'Add a note in your own words. You can refine it later.';
+  const input = document.getElementById('ph-modal-input');
+  input.value = '';
+  document.getElementById('ph-modal-error').hidden = true;
+  document.getElementById('ph-modal').hidden = false;
+  input.focus();
+}
+function closePhModal() {
+  document.getElementById('ph-modal').hidden = true;
+  _phModalId = null;
+}
+async function refreshProfileStats() {
+  try {
+    const res = await fetch('/api/profile');
+    if (!res.ok) return;
+    const d = await res.json();
+    const s = d.stats || {};
+    document.getElementById('stat-items').textContent = (s.items ?? 0).toLocaleString();
+    if (_isOwner) document.getElementById('stat-concepts').textContent = (s.concept_pages ?? 0).toLocaleString();
+  } catch { /* leave stale numbers */ }
+}
+
+document.getElementById('ph-add')?.addEventListener('click', () => {
+  const id = document.getElementById('ph-add').dataset.ph;
+  if (id) openPhModal(id);
+});
+document.getElementById('ph-dismiss')?.addEventListener('click', async () => {
+  const id = document.getElementById('ph-dismiss').dataset.ph;
+  if (!id) return;
+  try {
+    await fetch('/api/profile/placeholder-dismiss', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ placeholder_id: id }),
+    });
+  } catch { /* ignore; reload reflects server truth */ }
+  await loadHypergraph();
+});
+document.getElementById('ph-modal-cancel')?.addEventListener('click', closePhModal);
+document.getElementById('ph-modal')?.addEventListener('click', (e) => {
+  if (e.target === document.getElementById('ph-modal')) closePhModal();
+});
+document.getElementById('ph-modal-save')?.addEventListener('click', async () => {
+  const content = document.getElementById('ph-modal-input').value.trim();
+  const err = document.getElementById('ph-modal-error');
+  if (!content) { err.textContent = 'Write a little something first.'; err.hidden = false; return; }
+  err.hidden = true;
+  const btn = document.getElementById('ph-modal-save');
+  btn.disabled = true; btn.textContent = 'Adding…';
+  try {
+    const res = await fetch('/api/profile/placeholder-fill', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ placeholder_id: _phModalId, content }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not save');
+    closePhModal();
+    await refreshProfileStats();
+    await loadHypergraph();
+  } catch (e) {
+    err.textContent = e.message; err.hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Add to twin';
+  }
+});
 
 // ── Shared-token settings (reuse existing /api/account/* endpoints) ──────────
 function renderSharedSection() {

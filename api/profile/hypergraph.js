@@ -18,6 +18,7 @@ import {
   resolveAccessibleItems,
   countConceptPages,
   getOwnerIdentity,
+  getActivePlaceholders,
   isoDate,
 } from '../../lib/profile.js';
 
@@ -158,6 +159,16 @@ export default async function handler(req, res) {
       domains[d].node_ids.push(idx);
     });
 
+    // Empty-state placeholders: owner-only, near-empty workspace, not dismissed.
+    // Stamp the palette colour so the client renders the ghost node in-cluster.
+    const placeholderDefs = await getActivePlaceholders(db, {
+      workspace, isOwner, itemCount: nodes.length,
+    });
+    const placeholders = placeholderDefs.map(p => ({
+      ...p,
+      color: DOMAIN_COLOR[p.domain] || DOMAIN_COLOR[DOMAIN_KEYS[0]],
+    }));
+
     return res.status(200).json({
       workspace: {
         id:   workspace.id,
@@ -173,6 +184,7 @@ export default async function handler(req, res) {
       nodes,
       edges,
       domains,
+      placeholders,
     });
   } catch (err) {
     console.error('[profile/hypergraph] error:', err?.message);
