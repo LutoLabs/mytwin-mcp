@@ -307,7 +307,7 @@ export async function getByTag(ctx, { tag, limit = 20 }) {
 const SKILL_TYPES     = ['skill', 'voice'];
 const KNOWLEDGE_TYPES = ['knowledge', 'principle', 'brand', 'idea', 'resource'];
 
-async function querySliceByType(ctx, query, embedding, knowledgeTypes, topK, isSkillSlice = false, provenanceFilter = null, returnLimit = null, includeShared = false) {
+async function querySliceByType(ctx, query, embedding, knowledgeTypes, topK, isSkillSlice = false, provenanceFilter = null, returnLimit = null, includeShared = false, includeMemberWorkspaces = false) {
   const db = getDB();
 
   // Permission-aware shared items are merged ONLY into non-skill slices. The
@@ -315,8 +315,13 @@ async function querySliceByType(ctx, query, embedding, knowledgeTypes, topK, isS
   // so a person they share with never has their voice surfaced as the user's.
   const shared = includeShared ? await getAccessibleSharedItems(ctx) : null;
 
+  // Org-workspace items enter the knowledge bucket only (never the skill bucket).
+  // A member may draw on workspace knowledge for creation; the ratchet is preserved
+  // because workspace content never flows back into the personal namespace.
+  const memberWs = includeMemberWorkspaces ? await getMemberWorkspaces(ctx) : null;
+
   const baseFilter = { knowledge_type: { $in: knowledgeTypes } };
-  const [ownRes, sharedMatches] = await Promise.all([
+  const [ownRes, sharedMatches, wsMatches] = await Promise.all([
     getNamespace(ctx.tenantId).query({
       vector: embedding,
       topK,
@@ -324,15 +329,24 @@ async function querySliceByType(ctx, query, embedding, knowledgeTypes, topK, isS
       filter: baseFilter,
     }),
     shared ? querySharedNamespaces(shared, embedding, baseFilter, topK) : Promise.resolve([]),
+    memberWs ? queryWorkspaceNamespaces(memberWs, embedding, baseFilter, topK) : Promise.resolve([]),
   ]);
 
-  const ranked = rankDedupeMatches([ownRes.matches || [], sharedMatches], null);
+  // Phase 3: drop workspace items this user is denied by a group restriction.
+  const deniedItemIds = memberWs?.deniedItemIds || new Set();
+  const wsMatchesAllowed = deniedItemIds.size
+    ? wsMatches.filter(m => !deniedItemIds.has(m.metadata?.knowledge_id))
+    : wsMatches;
+
+  const ranked = rankDedupeMatches([ownRes.matches || [], sharedMatches, wsMatchesAllowed], null);
   if (!ranked.length) return [];
 
   const sharedIdSet = shared ? shared.idSet : new Set();
-  const allIds   = ranked.map(m => m.metadata.knowledge_id);
-  const ownIds    = allIds.filter(id => !sharedIdSet.has(id));
+  const wsItemIds = new Set(wsMatchesAllowed.map(m => m.metadata?.knowledge_id).filter(Boolean));
+  const allIds    = ranked.map(m => m.metadata.knowledge_id);
+  const ownIds    = allIds.filter(id => !sharedIdSet.has(id) && !wsItemIds.has(id));
   const sharedIds = allIds.filter(id => sharedIdSet.has(id));
+  const wsIds     = allIds.filter(id => wsItemIds.has(id) && !sharedIdSet.has(id));
 
   const rowMap = {};
   if (ownIds.length) {
@@ -356,11 +370,16 @@ async function querySliceByType(ctx, query, embedding, knowledgeTypes, topK, isS
     const { data: sharedRows } = await db.from('knowledge').select('*').in('id', sharedIds);
     for (const r of sharedRows || []) rowMap[r.id] = { row: r, shared: true, level: shared.levelById.get(r.id) };
   }
+  if (wsIds.length) {
+    // Workspace membership is the authorisation; fetch by id across the org tenant.
+    const { data: wsRows } = await db.from('knowledge').select('*').in('id', wsIds);
+    for (const r of wsRows || []) rowMap[r.id] = { row: r, workspace: true, workspace_id: r.workspace_id };
+  }
 
   const matched = ranked.map(m => {
     const entry = rowMap[m.metadata.knowledge_id];
     if (!entry) return null;
-    const { row, shared: isShared, level } = entry;
+    const { row, shared: isShared, level, workspace: isWs } = entry;
     return {
       id: row.id,
       type: row.type,
@@ -372,6 +391,7 @@ async function querySliceByType(ctx, query, embedding, knowledgeTypes, topK, isS
       relevance: Math.round((m.score || 0) * 100),
       shared: !!isShared,
       ...(isShared ? { access_level: level } : {}),
+      ...(isWs ? { workspace: true, workspace_id: entry.workspace_id } : {}),
     };
   }).filter(Boolean);
 
@@ -400,12 +420,14 @@ export async function searchForCreation(ctx, { query, output_type }) {
   const [skills, knowledge] = await Promise.all([
     // Over-fetch (12) then keep the top 3 personal skill/voice items after the
     // provenance filter, so a personal skill is never crowded out by client work.
-    // includeShared=false: the skill bucket is the user's own craft only — a
-    // shared item must never surface as if it were the user's voice.
-    querySliceByType(ctx, query, embedding, SKILL_TYPES,     12, true,  ['personal'], 3,    false),
-    // includeShared=true: the knowledge bucket is the material to draw on, so
-    // can_use+ shared items belong here. Bounded to 6 to hold the token budget.
-    querySliceByType(ctx, query, embedding, KNOWLEDGE_TYPES,  5, false, null,         6,    true),
+    // includeShared=false, includeMemberWorkspaces=false: the skill bucket is the
+    // user's own craft only. Org workspace content must never surface as the user's
+    // voice.
+    querySliceByType(ctx, query, embedding, SKILL_TYPES,     12, true,  ['personal'], 3,    false, false),
+    // includeShared=true, includeMemberWorkspaces=true: the knowledge bucket is the
+    // material to draw on. can_use+ shared items and org-workspace items (for
+    // workspace members) both belong here. Bounded to 6 to hold the token budget.
+    querySliceByType(ctx, query, embedding, KNOWLEDGE_TYPES,  5, false, null,         6,    true,  true),
   ]);
 
   // Skill-gap detection: zero skill hits AND we know what output_type
