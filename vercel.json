@@ -75,6 +75,9 @@
     "api/items/[id]/permissions/index.js": { "maxDuration": 10  },
     "api/items/[id]/permissions/[permissionId].js": { "maxDuration": 10 },
     "api/invitations/[token]/index.js":    { "maxDuration": 10  },
-    "api/invitations/[token]/accept.js":   { "maxDuration": 15  }
+    "api/invitations/[token]/accept.js":   { "maxDuration": 15  },
+    "api/library/items.js":               { "maxDuration": 15  },
+    "api/library/upvote.js":              { "maxDuration": 10  },
+    "api/library/leaderboard.js":         { "maxDuration": 15  }
   }
 }

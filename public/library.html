@@ -874,6 +874,80 @@ header.site-header {
 /* ── Embed mode — legacy; the iframe embed is retired, kept harmless ───── */
 body.embed header.site-header { display: none; }
 body.embed { background: var(--paper); }
+
+/* ── Upvote button on list cards ────────────────────────────────────────── */
+.upvote-btn {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: none; border: 1px solid var(--line);
+  border-radius: 4px; padding: 2px 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; font-weight: 600; color: var(--muted);
+  cursor: pointer; flex-shrink: 0;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+.upvote-btn:hover { color: var(--coral); border-color: var(--coral); }
+.upvote-btn.voted {
+  color: var(--coral); border-color: var(--coral);
+  background: rgba(255,90,60,0.08);
+}
+.upvote-btn:disabled { opacity: 0.5; cursor: default; }
+.upvote-icon { font-size: 7px; line-height: 1; }
+
+/* ── Leaderboard (Team view) ─────────────────────────────────────────────── */
+.leaderboard-section {
+  max-width: 1280px; margin: 0 auto;
+  padding: 32px 32px 80px;
+}
+.leaderboard-head {
+  margin-bottom: 24px;
+}
+.leaderboard-table {
+  display: flex; flex-direction: column;
+  border: 1.5px solid var(--ink); border-radius: 10px;
+  overflow: hidden; max-width: 720px;
+  box-shadow: var(--shadow-brutal);
+}
+.leaderboard-row {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+  transition: background 120ms;
+}
+.leaderboard-row:last-child { border-bottom: none; }
+.leaderboard-row:hover { background: var(--paper-2); }
+.leaderboard-row.is-you { background: #fffde8; }
+.lb-rank {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--muted); min-width: 20px; flex-shrink: 0;
+}
+.lb-email {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; color: var(--ink); flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lb-contrib {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--muted);
+  min-width: 90px; text-align: right; flex-shrink: 0;
+}
+.lb-upvotes {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; font-weight: 700; color: var(--coral);
+  min-width: 90px; text-align: right; flex-shrink: 0;
+}
+.lb-you-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; background: var(--yellow);
+  border: 1px solid var(--ink); border-radius: 3px;
+  padding: 1px 5px; flex-shrink: 0;
+}
+.leaderboard-unavail {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 15px; font-style: italic; color: var(--muted);
+  padding: 48px 0; text-align: center;
+}
 </style>
 </head>
 <body>
@@ -929,6 +1003,7 @@ body.embed { background: var(--paper); }
       <div class="brain-view-toggle" role="group" aria-label="View">
         <button class="bvt-btn" data-view="wiki">Wiki</button>
         <button class="bvt-btn active" data-view="library">Library</button>
+        <button class="bvt-btn" data-view="team">Team</button>
       </div>
     </div>
   </div>
@@ -967,6 +1042,9 @@ body.embed { background: var(--paper); }
         <div class="chips-divider" id="chips-divider"></div>
         <div class="chips-group" role="group" aria-label="Sort order">
           <button class="chip sort-chip active" data-sort="recent">Recent</button>
+          <button class="chip sort-chip" data-sort="alphabetical">A-Z</button>
+          <button class="chip sort-chip" data-sort="by-type">By type</button>
+          <button class="chip sort-chip" data-sort="most-upvoted">Top</button>
         </div>
         <div class="chips-divider" id="vis-chips-divider"></div>
         <div id="vis-chips" class="chips-group" role="group" aria-label="Filter by visibility">
@@ -1000,6 +1078,14 @@ body.embed { background: var(--paper); }
       <div class="concept-grid" id="concept-grid-skills"></div>
     </section>
   </div>
+
+  <!-- Team / leaderboard view — shown when Team tab is active -->
+  <section class="leaderboard-section" id="leaderboard-section" hidden>
+    <div class="leaderboard-head">
+      <span class="section-label">Contributors</span>
+    </div>
+    <div id="leaderboard-wrap"></div>
+  </section>
 
   <!-- Shared with you (P1.4) — items other people shared with this user -->
   <section class="shared-section" id="shared-section" hidden style="margin-bottom:28px;">
@@ -1250,8 +1336,95 @@ async function api(path, opts = {}) {
   return body;
 }
 
-function fetchStats()    { return api('/api/library/stats'); }
-function fetchConcepts() { return api('/api/library/concepts'); }
+function fetchStats()       { return api('/api/library/stats'); }
+function fetchConcepts()    { return api('/api/library/concepts'); }
+function fetchLeaderboard() { return api('/api/library/leaderboard'); }
+
+function castUpvote(id) {
+  return api('/api/library/upvote', { method: 'POST',   body: JSON.stringify({ knowledge_id: id }) });
+}
+function removeUpvote(id) {
+  return api('/api/library/upvote', { method: 'DELETE', body: JSON.stringify({ knowledge_id: id }) });
+}
+
+// Upvote toggle button for list cards. Taps the upvote endpoint and updates
+// the button in place without re-rendering the full card.
+function makeUpvoteButton(item) {
+  const btn = el('button', 'upvote-btn' + (item.viewer_has_voted ? ' voted' : ''));
+  btn.setAttribute('aria-label', 'Upvote this item');
+  btn.title = item.viewer_has_voted ? 'Remove upvote' : 'Upvote';
+
+  const icon  = el('span', 'upvote-icon', '▲'); // up-triangle
+  const count = el('span', 'upvote-count', String(item.upvote_count || 0));
+  btn.appendChild(icon);
+  btn.appendChild(count);
+
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    btn.disabled = true;
+    try {
+      const voted = btn.classList.contains('voted');
+      const res = voted ? await removeUpvote(item.id) : await castUpvote(item.id);
+      item.upvote_count     = res.count;
+      item.viewer_has_voted = res.voted;
+      count.textContent     = res.count;
+      btn.classList.toggle('voted', res.voted);
+      btn.title = res.voted ? 'Remove upvote' : 'Upvote';
+    } catch (err) {
+      console.error('[library] upvote failed:', err.message || err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  return btn;
+}
+
+// Render the leaderboard data into #leaderboard-wrap.
+function renderLeaderboard(data) {
+  const wrap = eid('leaderboard-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+
+  if (!data.available) {
+    wrap.appendChild(el('p', 'leaderboard-unavail', 'No leaderboard data yet.'));
+    return;
+  }
+
+  const rows = data.leaderboard || [];
+  if (!rows.length) {
+    wrap.appendChild(el('p', 'leaderboard-unavail', 'No contributions yet.'));
+    return;
+  }
+
+  const table = el('div', 'leaderboard-table');
+  rows.forEach((row, i) => {
+    const r = el('div', 'leaderboard-row' + (row.is_you ? ' is-you' : ''));
+    r.appendChild(el('span', 'lb-rank', String(i + 1)));
+    r.appendChild(el('span', 'lb-email', row.email || 'Unknown'));
+    r.appendChild(el('span', 'lb-contrib',
+      row.contributions + ' item' + (row.contributions !== 1 ? 's' : '')));
+    r.appendChild(el('span', 'lb-upvotes',
+      row.upvotes_received + ' upvote' + (row.upvotes_received !== 1 ? 's' : '')));
+    if (row.is_you) r.appendChild(el('span', 'lb-you-badge', 'You'));
+    table.appendChild(r);
+  });
+
+  wrap.appendChild(table);
+}
+
+async function loadLeaderboard() {
+  const wrap = eid('leaderboard-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<p class="leaderboard-unavail">Loading...</p>';
+  try {
+    const data = await fetchLeaderboard();
+    renderLeaderboard(data);
+  } catch (err) {
+    console.error('[library] leaderboard fetch failed:', err);
+    wrap.innerHTML = '<p class="leaderboard-unavail">Could not load leaderboard.</p>';
+  }
+}
 
 // ── Person-to-person sharing modal (P1.4) ────────────────────────────────────
 // Built on the share API: POST /api/items/:id/share, GET .../permissions,
@@ -1738,32 +1911,39 @@ async function runCompileNow(btn, container) {
   }
 }
 
-// Toggle between the Library view (raw stored items: hero + stats + card grid)
-// and the Wiki view (compiled concept pages). Library is the default.
+// Toggle between Library (raw items), Wiki (compiled pages), and Team (leaderboard).
 function setBrainView(view) {
   state.brainView = view;
-  document.querySelectorAll('.bvt-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.view === view);
+  document.querySelectorAll(‘.bvt-btn’).forEach(b => {
+    b.classList.toggle(‘active’, b.dataset.view === view);
   });
-  const desc     = eid('brain-subnav-desc');
-  const hero     = document.querySelector('.lib-hero');
-  const meta     = eid('meta-strip');
-  const items    = document.querySelector('.items-section');
-  const concepts = eid('concepts-wrap');
+  const desc       = eid(‘brain-subnav-desc’);
+  const hero       = document.querySelector(‘.lib-hero’);
+  const meta       = eid(‘meta-strip’);
+  const items      = document.querySelector(‘.items-section’);
+  const concepts   = eid(‘concepts-wrap’);
+  const leaderboard = eid(‘leaderboard-section’);
+  const shared     = eid(‘shared-section’);
 
-  const wiki = view === 'wiki';
-  if (hero)     hero.hidden     = wiki;
-  if (meta)     meta.hidden     = wiki;
-  if (items)    items.hidden    = wiki;
-  const shared = eid('shared-section');
-  if (shared)   shared.hidden   = wiki || !state.hasSharedItems;
-  if (concepts) concepts.hidden = !wiki;
+  const wiki = view === ‘wiki’;
+  const team = view === ‘team’;
+  const lib  = view === ‘library’;
+
+  if (hero)       hero.hidden       = !lib;
+  if (meta)       meta.hidden       = !lib;
+  if (items)      items.hidden      = !lib;
+  if (shared)     shared.hidden     = !lib || !state.hasSharedItems;
+  if (concepts)   concepts.hidden   = !wiki;
+  if (leaderboard) leaderboard.hidden = !team;
+
   if (desc) {
-    desc.textContent = wiki
-      ? 'Your knowledge, compiled. The twin builds these from everything you store.'
-      : 'Everything you’ve stored. The raw material your wiki is built from.';
+    if (wiki)      desc.textContent = ‘Your knowledge, compiled. The twin builds these from everything you store.’;
+    else if (team) desc.textContent = ‘Who has contributed and earned the most upvotes in this brain.’;
+    else           desc.textContent = ‘Everything you\’ve stored. The raw material your wiki is built from.’;
   }
+
   if (wiki && state.conceptData) renderWikiState(state.conceptData);
+  if (team) loadLeaderboard();
 }
 
 // ── Card rendering ─────────────────────────────────────────────────────────
@@ -1788,6 +1968,11 @@ function makeCard(item) {
   if (item.visibility === 'sharable') {
     meta.appendChild(el('span', 'card-meta-sep', '·'));
     meta.appendChild(el('span', 'vis-badge vis-sharable', '🔗 Shared'));
+  }
+  // Upvote button — only shown when the user is signed in (token present)
+  if (state.token || document.cookie.includes('sb-')) {
+    meta.appendChild(el('span', 'card-meta-sep', '·'));
+    meta.appendChild(makeUpvoteButton(item));
   }
   card.appendChild(meta);
 
