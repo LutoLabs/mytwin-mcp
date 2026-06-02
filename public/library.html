@@ -1873,7 +1873,7 @@ function renderWikiStatus(container, data) {
     sub = 'Store at least a couple of items and your twin will build concept pages from them.';
     showCompile = false;
   } else {
-    headline = 'Concept pages aren’t built yet.';
+    headline = 'Concept pages aren't built yet.';
     sub = 'You have ' + items + ' item' + (items === 1 ? '' : 's') + ' stored. Compile them into concept pages now.';
     showCompile = true;
   }
@@ -1914,20 +1914,20 @@ async function runCompileNow(btn, container) {
 // Toggle between Library (raw items), Wiki (compiled pages), and Team (leaderboard).
 function setBrainView(view) {
   state.brainView = view;
-  document.querySelectorAll(‘.bvt-btn’).forEach(b => {
-    b.classList.toggle(‘active’, b.dataset.view === view);
+  document.querySelectorAll('.bvt-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === view);
   });
-  const desc       = eid(‘brain-subnav-desc’);
-  const hero       = document.querySelector(‘.lib-hero’);
-  const meta       = eid(‘meta-strip’);
-  const items      = document.querySelector(‘.items-section’);
-  const concepts   = eid(‘concepts-wrap’);
-  const leaderboard = eid(‘leaderboard-section’);
-  const shared     = eid(‘shared-section’);
+  const desc       = eid('brain-subnav-desc');
+  const hero       = document.querySelector('.lib-hero');
+  const meta       = eid('meta-strip');
+  const items      = document.querySelector('.items-section');
+  const concepts   = eid('concepts-wrap');
+  const leaderboard = eid('leaderboard-section');
+  const shared     = eid('shared-section');
 
-  const wiki = view === ‘wiki’;
-  const team = view === ‘team’;
-  const lib  = view === ‘library’;
+  const wiki = view === 'wiki';
+  const team = view === 'team';
+  const lib  = view === 'library';
 
   if (hero)       hero.hidden       = !lib;
   if (meta)       meta.hidden       = !lib;
@@ -1937,9 +1937,9 @@ function setBrainView(view) {
   if (leaderboard) leaderboard.hidden = !team;
 
   if (desc) {
-    if (wiki)      desc.textContent = ‘Your knowledge, compiled. The twin builds these from everything you store.’;
-    else if (team) desc.textContent = ‘Who has contributed and earned the most upvotes in this brain.’;
-    else           desc.textContent = ‘Everything you\’ve stored. The raw material your wiki is built from.’;
+    if (wiki)      desc.textContent = 'Your knowledge, compiled. The twin builds these from everything you store.';
+    else if (team) desc.textContent = 'Who has contributed and earned the most upvotes in this brain.';
+    else           desc.textContent = 'Everything you\'ve stored. The raw material your wiki is built from.';
   }
 
   if (wiki && state.conceptData) renderWikiState(state.conceptData);
