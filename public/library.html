@@ -872,6 +872,28 @@ header.site-header {
 .block-add-btn.vis { opacity: 1; pointer-events: auto; }
 .block-add-btn:hover { color: var(--ink); border-color: var(--ink-2); }
 
+/* Edit / Done buttons */
+.vis-edit-btn { color: var(--ink-2); border-color: var(--line); margin-left: 0; }
+.vis-edit-btn:hover { color: var(--ink); border-color: var(--ink); }
+.vis-done-btn {
+  border-color: #2d7d4d; color: #2d7d4d; background: #e8f4ed;
+}
+.vis-done-btn:hover { border-color: #1e5c38; color: #1e5c38; background: #d4ecdf; }
+
+/* Read-mode cursor must stay default; text cursor applies only in edit mode */
+.detail-content .ProseMirror { cursor: text; }
+
+/* Content area subtle edit-mode affordance (box-shadow, no layout shift) */
+#detail-content {
+  border-radius: 4px;
+  transition: box-shadow 200ms ease;
+}
+#detail-content.is-editing {
+  box-shadow: 0 0 0 1px var(--line);
+  padding: 12px;
+  margin: -12px;
+}
+
 /* ── Surface nav — Chat / Brain / Voice (consistent with /twin) ───────── */
 .surface-nav {
   border-bottom: 1px solid var(--line);
@@ -1237,6 +1259,13 @@ body.embed { background: var(--paper); }
   <!-- Contribute control (P2 S-F) — copy this item into an org workspace -->
   <button id="detail-contribute-btn" class="vis-toggle" title="Contribute this item to an organisation workspace">
     🏢 Contribute
+  </button>
+  <!-- Edit / Done toggle — only shown for the item owner -->
+  <button id="detail-edit-btn" class="vis-toggle vis-edit-btn" title="Edit this document" hidden>
+    ✏ Edit
+  </button>
+  <button id="detail-done-btn" class="vis-toggle vis-done-btn" title="Done editing — return to read view" hidden>
+    ✓ Done
   </button>
   <h1 class="detail-title" id="detail-title"></h1>
   <div class="detail-meta-row" id="detail-meta-row"></div>
@@ -1793,7 +1822,11 @@ function renderMarkdown(text) {
 // ── View switching ─────────────────────────────────────────────────────────
 
 function showView(id) {
-  if (id !== 'view-detail' && state.editor) destroyEditor();
+  if (id !== 'view-detail' && state.editor) {
+    // Best-effort flush before navigation; destroyEditor does not auto-save.
+    performSave().catch(() => {});
+    destroyEditor();
+  }
   ['view-loading', 'view-index', 'view-detail'].forEach(v => {
     eid(v).hidden = v !== id;
   });
@@ -2399,14 +2432,31 @@ async function loadDetail(id) {
       tagsEl.appendChild(el('span', 'tag-chip', t));
     });
 
-    // Content — render markdown immediately, then hand off to inline editor
+    // Content — render clean read-only HTML; editor only activates on Edit click.
     eid('detail-content').innerHTML = renderMarkdown(item.content || '');
 
-    // Inline editor — initialise for owner (not in embed / shared-twin view).
-    // Fire-and-forget: content stays visible while Tiptap modules download.
-    const isEmbed = new URLSearchParams(location.search).has('embed');
-    if (state.token && !isEmbed) {
-      initEditor(item.id, item.content || '', cardTitle(item));
+    // Wire up Edit / Done buttons (owner only, not embed / shared-twin view).
+    const _isEmbed  = new URLSearchParams(location.search).has('embed');
+    const _editBtn  = eid('detail-edit-btn');
+    const _doneBtn  = eid('detail-done-btn');
+    if (_doneBtn) _doneBtn.hidden = true;
+    if (_editBtn) {
+      if (state.token && !_isEmbed) {
+        _editBtn.hidden   = false;
+        _editBtn.disabled = false;
+        _editBtn.textContent = '✏ Edit';
+        _editBtn.onclick = () => {
+          _editBtn.disabled    = true;
+          _editBtn.textContent = 'Loading...';
+          initEditor(item.id, item.content || '', cardTitle(item)).catch((err) => {
+            console.error('[editor] init error:', err);
+            _editBtn.disabled    = false;
+            _editBtn.textContent = '✏ Edit';
+          });
+        };
+      } else {
+        _editBtn.hidden = true;
+      }
     }
 
     // Concept pages this item feeds into
@@ -2630,28 +2680,35 @@ function scheduleAutosave() {
 }
 
 function destroyEditor() {
+  // Pure teardown — does NOT save. Callers are responsible for flushing
+  // pending saves before calling this (see showView, exitEditor).
   clearTimeout(_saveTimer);
-  // Best-effort flush — don't await (caller may not be async)
   if (state.editor) {
-    performSave().catch(() => {});
     state.editor.destroy();
     state.editor = null;
   }
   state.currentItemId    = null;
   state.currentItemTitle = null;
-  state.currentItem      = null;
-  // Retract affordances
-  const addBtn = _blockAddBtn;
-  if (addBtn) { addBtn.classList.remove('vis'); addBtn._targetBlock = null; }
-  // Remove bubble menu element
+  // NOTE: state.currentItem intentionally kept — download btn may still need it.
+
+  // Retract block + button
+  if (_blockAddBtn) {
+    _blockAddBtn.classList.remove('vis');
+    _blockAddBtn._targetBlock = null;
+    _blockAddHov = false;
+  }
+  // Remove floating bubble menu
   const bubble = document.getElementById('_editor_bubble');
   if (bubble) bubble.remove();
-  // Undo title editability
+  // Remove title editability
   const titleEl = eid('detail-title');
   if (titleEl) titleEl.removeAttribute('contenteditable');
-  // Reset save status
+  // Clear save status
   const sp = eid('editor-save-status');
   if (sp) sp.className = 'editor-save-status';
+  // Remove edit-mode content class
+  const contentEl = eid('detail-content');
+  if (contentEl) contentEl.classList.remove('is-editing');
 }
 
 async function initEditor(itemId, markdownContent, titleText) {
@@ -2836,6 +2893,20 @@ async function initEditor(itemId, markdownContent, titleText) {
 
   state.editor = editor;
 
+  // ── Activate edit mode UI ──────────────────────────────────────────────
+  contentEl.classList.add('is-editing');
+  const editBtnEl = eid('detail-edit-btn');
+  const doneBtnEl = eid('detail-done-btn');
+  if (editBtnEl) editBtnEl.hidden = true;
+  if (doneBtnEl) {
+    doneBtnEl.hidden   = false;
+    doneBtnEl.disabled = false;
+    doneBtnEl.textContent = 'Done';
+    doneBtnEl.onclick  = () => exitEditor();
+  }
+  // Auto-focus the editor body so the user can start typing immediately
+  editor.commands.focus('end');
+
   // ── Bubble menu positioning ────────────────────────────────────────────
   // Manual positioning via selection bounds (avoids tippy.js dependency).
   function updateBubbleMenu(e, el) {
@@ -2981,6 +3052,48 @@ async function initEditor(itemId, markdownContent, titleText) {
   }
 
   console.log('[editor] ready — item', itemId);
+}
+
+// Graceful exit: save, destroy editor, re-render clean read view, swap buttons.
+async function exitEditor() {
+  if (!state.editor) return;
+
+  const doneBtnEl = eid('detail-done-btn');
+  const editBtnEl = eid('detail-edit-btn');
+
+  // Disable Done while saving to prevent double-click
+  if (doneBtnEl) { doneBtnEl.disabled = true; doneBtnEl.textContent = 'Saving...'; }
+
+  // Capture live content before we destroy anything
+  const finalContent = state.editor.storage.markdown.getMarkdown();
+  const finalTitle   = (eid('detail-title') ? eid('detail-title').textContent.trim() : '')
+                     || state.currentItemTitle || '';
+
+  // Flush any pending save, then one explicit save with final content
+  clearTimeout(_saveTimer);
+  await performSave();
+
+  // Tear down editor (destroyEditor does NOT save; we already did above)
+  const contentEl = eid('detail-content');
+  if (contentEl) contentEl.classList.remove('is-editing');
+  destroyEditor();
+
+  // Re-render clean read HTML with the saved content
+  if (contentEl) contentEl.innerHTML = renderMarkdown(finalContent);
+
+  // Restore title text (contenteditable was removed by destroyEditor)
+  const titleEl = eid('detail-title');
+  if (titleEl && finalTitle) titleEl.textContent = finalTitle;
+
+  // Swap buttons back
+  if (doneBtnEl) { doneBtnEl.hidden = true; doneBtnEl.disabled = false; doneBtnEl.textContent = 'Done'; }
+  if (editBtnEl) { editBtnEl.hidden = false; editBtnEl.disabled = false; editBtnEl.textContent = '✏ Edit'; }
+
+  // Clear save status indicator
+  const sp = eid('editor-save-status');
+  if (sp) sp.className = 'editor-save-status';
+
+  console.log('[editor] exited');
 }
 
 // ── Browser back / forward ─────────────────────────────────────────────────
