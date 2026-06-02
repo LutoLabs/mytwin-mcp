@@ -777,6 +777,101 @@ header.site-header {
   .chips-divider { display: none; }
 }
 
+/* ── Inline editor ─────────────────────────────────────────────────────── */
+
+/* ProseMirror inherits .detail-content typography so there is no reflow
+   when the editor activates. Remove the default focus outline. */
+.detail-content .ProseMirror { outline: none; }
+.detail-content .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left; color: var(--muted); pointer-events: none; height: 0;
+}
+
+/* Editable title — border reveals on hover/focus */
+#detail-title[contenteditable='true'] {
+  outline: none; cursor: text;
+  border-bottom: 2px solid transparent; padding-bottom: 2px;
+  transition: border-bottom-color 180ms;
+}
+#detail-title[contenteditable='true']:hover { border-bottom-color: var(--line); }
+#detail-title[contenteditable='true']:focus { border-bottom-color: var(--ink); }
+
+/* Save status indicator */
+.editor-save-status {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .1em; display: inline-block;
+  margin-left: 10px; vertical-align: middle;
+  transition: opacity 300ms ease; opacity: 0; pointer-events: none;
+}
+.editor-save-status.vis       { opacity: 1; }
+.editor-save-status.st-saving { color: var(--muted); }
+.editor-save-status.st-saved  { color: #2d7d4d; }
+.editor-save-status.st-error  { color: var(--coral); }
+
+/* Floating toolbar shown on text selection */
+.editor-bubble {
+  position: fixed; z-index: 400;
+  display: flex; align-items: center; gap: 1px; padding: 4px 3px;
+  background: var(--ink); border-radius: 7px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.35);
+  transition: opacity 120ms ease, visibility 120ms ease;
+  opacity: 0; visibility: hidden; pointer-events: none;
+}
+.editor-bubble.vis { opacity: 1; visibility: visible; pointer-events: auto; }
+.editor-bubble button {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; font-weight: 700; line-height: 1;
+  color: rgba(255,255,255,.7);
+  background: none; border: none; padding: 4px 8px; border-radius: 4px;
+  cursor: pointer; transition: color 80ms, background 80ms;
+}
+.editor-bubble button:hover    { color: #fff; background: rgba(255,255,255,.14); }
+.editor-bubble button.is-active { color: var(--yellow); }
+.editor-bubble-sep {
+  width: 1px; height: 14px; background: rgba(255,255,255,.2);
+  margin: 0 2px; flex-shrink: 0;
+}
+
+/* Slash command dropdown */
+.slash-menu {
+  position: fixed; z-index: 500;
+  background: var(--paper); border: 1.5px solid var(--ink);
+  border-radius: 9px; padding: 5px 4px;
+  box-shadow: 3px 3px 0 var(--ink); min-width: 220px;
+}
+.slash-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 5px; cursor: pointer;
+  transition: background 80ms;
+}
+.slash-item.selected, .slash-item:hover { background: var(--paper-2); }
+.slash-icon {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--muted);
+  width: 26px; text-align: center; flex-shrink: 0;
+}
+.slash-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px; font-weight: 500; color: var(--ink);
+}
+
+/* Block add (+) button — fixed-position, follows hovered block */
+.block-add-btn {
+  position: fixed; z-index: 100;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; line-height: 1; color: var(--muted);
+  background: var(--paper); border: 1px solid var(--line);
+  border-radius: 4px; cursor: pointer;
+  opacity: 0; pointer-events: none;
+  transition: opacity 120ms, color 100ms, border-color 100ms;
+  font-family: 'Inter', sans-serif; user-select: none;
+}
+.block-add-btn.vis { opacity: 1; pointer-events: auto; }
+.block-add-btn:hover { color: var(--ink); border-color: var(--ink-2); }
+
 /* ── Surface nav — Chat / Brain / Voice (consistent with /twin) ───────── */
 .surface-nav {
   border-bottom: 1px solid var(--line);
@@ -1148,6 +1243,7 @@ body.embed { background: var(--paper); }
   <button id="detail-download-btn" class="detail-download-btn" title="Download this item as a Markdown file" hidden>
     ↓ Download .md
   </button>
+  <span id="editor-save-status" class="editor-save-status" aria-live="polite"></span>
 
   <!-- Part navigation — shown only for multi-part documents -->
   <div id="detail-parts" hidden></div>
@@ -1203,6 +1299,11 @@ const state = {
   visibilityFilter: null,  // null = all, 'private', 'sharable'
   brainView:       'library', // 'library' (raw items) | 'wiki' (compiled pages)
   conceptData:     null,      // cached /api/library/concepts response
+  // Inline editor
+  editor:           null,
+  currentItemId:    null,
+  currentItemTitle: null,
+  currentItem:      null,
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -1692,6 +1793,7 @@ function renderMarkdown(text) {
 // ── View switching ─────────────────────────────────────────────────────────
 
 function showView(id) {
+  if (id !== 'view-detail' && state.editor) destroyEditor();
   ['view-loading', 'view-index', 'view-detail'].forEach(v => {
     eid(v).hidden = v !== id;
   });
@@ -2062,6 +2164,7 @@ async function renderItemsSection(append = false) {
 // ── Index view ─────────────────────────────────────────────────────────────
 
 async function loadIndex() {
+  if (state.editor) await destroyEditor();
   showView('view-index');
   // Load stats, concept sections, and items in parallel
   await Promise.allSettled([
@@ -2218,6 +2321,7 @@ async function loadDetail(id) {
   try {
     // Phase 1: Fast DB fetch — item + siblings + concept pages
     const { item, siblings, concept_pages } = await fetchItem(id);
+    state.currentItem = item;
 
     document.title = cardTitle(item) + ' · Library · MyAITwin';
 
@@ -2295,8 +2399,15 @@ async function loadDetail(id) {
       tagsEl.appendChild(el('span', 'tag-chip', t));
     });
 
-    // Content
+    // Content — render markdown immediately, then hand off to inline editor
     eid('detail-content').innerHTML = renderMarkdown(item.content || '');
+
+    // Inline editor — initialise for owner (not in embed / shared-twin view).
+    // Fire-and-forget: content stays visible while Tiptap modules download.
+    const isEmbed = new URLSearchParams(location.search).has('embed');
+    if (state.token && !isEmbed) {
+      initEditor(item.id, item.content || '', cardTitle(item));
+    }
 
     // Concept pages this item feeds into
     renderConceptsSection(concept_pages);
@@ -2448,6 +2559,429 @@ eid('load-more-btn').addEventListener('click', () => {
   state.offset += state.limit;
   renderItemsSection(true);
 });
+
+// ── Inline editor ──────────────────────────────────────────────────────────
+//
+// Tiptap is loaded lazily on first detail-view open via dynamic import()
+// from esm.sh so there is no build step and no up-front bundle cost.
+// All edits autosave with a 1.5 s debounce and also flush on blur.
+// Markdown in/out uses the tiptap-markdown extension for clean round-trips.
+
+let _saveTimer     = null;
+let _saveHideTimer = null;
+let _blockAddBtn   = null;   // singleton, reused across opens
+let _blockAddHov   = false;  // true while mouse is over the + button itself
+
+function _getBlockAddBtn() {
+  if (!_blockAddBtn) {
+    _blockAddBtn = document.createElement('button');
+    _blockAddBtn.className = 'block-add-btn';
+    _blockAddBtn.title = 'Add block below (then type / for options)';
+    _blockAddBtn.setAttribute('aria-label', 'Add block below');
+    _blockAddBtn.textContent = '+';
+    document.body.appendChild(_blockAddBtn);
+  }
+  return _blockAddBtn;
+}
+
+function setEditorSaveStatus(status, msg) {
+  const sp = eid('editor-save-status');
+  if (!sp) return;
+  clearTimeout(_saveHideTimer);
+  sp.className = 'editor-save-status vis st-' + status;
+  sp.textContent = msg
+    ? msg
+    : status === 'saving' ? 'Saving...'
+    : status === 'saved'  ? 'Saved'
+    : 'Error saving';
+  if (status === 'saved') {
+    _saveHideTimer = setTimeout(() => {
+      sp.className = 'editor-save-status';
+    }, 3000);
+  }
+}
+
+async function performSave() {
+  if (!state.editor || !state.currentItemId) return;
+  setEditorSaveStatus('saving');
+  try {
+    const content  = state.editor.storage.markdown.getMarkdown();
+    const titleEl  = eid('detail-title');
+    const newTitle = titleEl ? titleEl.textContent.trim() : '';
+    const body     = { content };
+    if (newTitle && newTitle !== state.currentItemTitle) body.title = newTitle;
+    await api('/api/twin/knowledge/' + encodeURIComponent(state.currentItemId), {
+      method: 'PATCH',
+      body:   JSON.stringify(body),
+    });
+    if (newTitle && newTitle !== state.currentItemTitle) {
+      state.currentItemTitle = newTitle;
+    }
+    setEditorSaveStatus('saved');
+  } catch (err) {
+    console.error('[editor] save failed:', err.message || err);
+    setEditorSaveStatus('error');
+  }
+}
+
+function scheduleAutosave() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(performSave, 1500);
+}
+
+function destroyEditor() {
+  clearTimeout(_saveTimer);
+  // Best-effort flush — don't await (caller may not be async)
+  if (state.editor) {
+    performSave().catch(() => {});
+    state.editor.destroy();
+    state.editor = null;
+  }
+  state.currentItemId    = null;
+  state.currentItemTitle = null;
+  state.currentItem      = null;
+  // Retract affordances
+  const addBtn = _blockAddBtn;
+  if (addBtn) { addBtn.classList.remove('vis'); addBtn._targetBlock = null; }
+  // Remove bubble menu element
+  const bubble = document.getElementById('_editor_bubble');
+  if (bubble) bubble.remove();
+  // Undo title editability
+  const titleEl = eid('detail-title');
+  if (titleEl) titleEl.removeAttribute('contenteditable');
+  // Reset save status
+  const sp = eid('editor-save-status');
+  if (sp) sp.className = 'editor-save-status';
+}
+
+async function initEditor(itemId, markdownContent, titleText) {
+  // Record which item this init belongs to; use as a cancellation guard.
+  const thisItemId = itemId;
+
+  // Tear down any running editor for a previous item first.
+  if (state.editor) destroyEditor();
+
+  state.currentItemId    = itemId;
+  state.currentItemTitle = (titleText || '').trim();
+
+  // ── Bubble menu element ────────────────────────────────────────────────
+  const bubbleEl = document.createElement('div');
+  bubbleEl.id        = '_editor_bubble';
+  bubbleEl.className = 'editor-bubble';
+  bubbleEl.setAttribute('role', 'toolbar');
+  bubbleEl.setAttribute('aria-label', 'Text formatting');
+  bubbleEl.innerHTML =
+    '<button data-cmd="bold"   title="Bold (Cmd+B)"><b>B</b></button>' +
+    '<button data-cmd="italic" title="Italic (Cmd+I)"><i>I</i></button>' +
+    '<button data-cmd="code"   title="Inline code"><code>{ }</code></button>' +
+    '<span class="editor-bubble-sep"></span>' +
+    '<button data-cmd="link"   title="Link">Link</button>';
+  document.body.appendChild(bubbleEl);
+
+  // ── Load Tiptap from CDN ───────────────────────────────────────────────
+  let EditorClass, ExtensionClass, StarterKit, Markdown, Link, Suggestion;
+  try {
+    const cdn = 'https://esm.sh/';
+    const mods = await Promise.all([
+      import(cdn + '@tiptap/core@2'),
+      import(cdn + '@tiptap/starter-kit@2'),
+      import(cdn + 'tiptap-markdown'),
+      import(cdn + '@tiptap/extension-link@2'),
+      import(cdn + '@tiptap/suggestion@2'),
+    ]);
+    EditorClass    = mods[0].Editor;
+    ExtensionClass = mods[0].Extension;
+    StarterKit     = mods[1].default;
+    Markdown       = mods[2].Markdown;
+    Link           = mods[3].default || mods[3].Link;
+    const suggMod  = mods[4];
+    Suggestion     = suggMod.default || suggMod.Suggestion;
+  } catch (err) {
+    console.error('[editor] CDN load failed:', err);
+    bubbleEl.remove();
+    return;
+  }
+
+  // Guard: user may have navigated to a different item while CDN was loading.
+  if (state.currentItemId !== thisItemId) { bubbleEl.remove(); return; }
+
+  // ── Slash command extension ────────────────────────────────────────────
+  const SLASH_ITEMS = [
+    { icon: 'H1',  label: 'Heading 1',      cmd: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 1 }).run() },
+    { icon: 'H2',  label: 'Heading 2',      cmd: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 2 }).run() },
+    { icon: 'H3',  label: 'Heading 3',      cmd: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 3 }).run() },
+    { icon: 'UL',  label: 'Bullet list',    cmd: (e, r) => e.chain().focus().deleteRange(r).toggleBulletList().run() },
+    { icon: 'OL',  label: 'Numbered list',  cmd: (e, r) => e.chain().focus().deleteRange(r).toggleOrderedList().run() },
+    { icon: '"',   label: 'Quote',          cmd: (e, r) => e.chain().focus().deleteRange(r).setBlockquote().run() },
+    { icon: '</>',  label: 'Code block',     cmd: (e, r) => e.chain().focus().deleteRange(r).setCodeBlock().run() },
+    { icon: '---', label: 'Divider',        cmd: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
+  ];
+
+  const SlashExt = ExtensionClass.create({
+    name: 'slashCommand',
+    addProseMirrorPlugins() {
+      const self = this;
+      return [
+        Suggestion({
+          editor:      self.editor,
+          char:        '/',
+          allowSpaces: false,
+          command: ({ editor, range, props }) => {
+            props.cmd(editor, range);
+          },
+          items: ({ query }) => {
+            return SLASH_ITEMS.filter(item =>
+              item.label.toLowerCase().startsWith(query.toLowerCase())
+            );
+          },
+          render: () => {
+            let menu = null;
+            let currentItems = [];
+            let selIdx = 0;
+            let cmdFn  = null;
+
+            function buildMenu(items, command, rectFn) {
+              if (menu) { menu.remove(); menu = null; }
+              if (!items.length) return;
+              currentItems = items;
+              selIdx = 0;
+              cmdFn  = command;
+              menu = document.createElement('div');
+              menu.className = 'slash-menu';
+              items.forEach((item, i) => {
+                const row = document.createElement('div');
+                row.className = 'slash-item' + (i === 0 ? ' selected' : '');
+                row.innerHTML =
+                  '<span class="slash-icon">' + item.icon + '</span>' +
+                  '<span class="slash-label">' + item.label + '</span>';
+                row.addEventListener('mousedown', (e) => {
+                  e.preventDefault();
+                  selIdx = i;
+                  cmdFn(currentItems[i]);
+                });
+                menu.appendChild(row);
+              });
+              document.body.appendChild(menu);
+              if (rectFn) {
+                const r = typeof rectFn === 'function' ? rectFn() : rectFn;
+                if (r) {
+                  menu.style.top  = (r.bottom + 6) + 'px';
+                  menu.style.left = r.left + 'px';
+                }
+              }
+            }
+
+            return {
+              onStart(props) {
+                buildMenu(props.items, props.command, props.clientRect);
+              },
+              onUpdate(props) {
+                buildMenu(props.items, props.command, props.clientRect);
+              },
+              onKeyDown({ event }) {
+                if (!menu) return false;
+                const rows = menu.querySelectorAll('.slash-item');
+                if (event.key === 'ArrowDown') {
+                  selIdx = Math.min(selIdx + 1, currentItems.length - 1);
+                  rows.forEach((r, i) => r.classList.toggle('selected', i === selIdx));
+                  return true;
+                }
+                if (event.key === 'ArrowUp') {
+                  selIdx = Math.max(selIdx - 1, 0);
+                  rows.forEach((r, i) => r.classList.toggle('selected', i === selIdx));
+                  return true;
+                }
+                if (event.key === 'Enter' || event.key === 'Tab') {
+                  if (cmdFn && currentItems[selIdx]) cmdFn(currentItems[selIdx]);
+                  return true;
+                }
+                if (event.key === 'Escape') {
+                  if (menu) { menu.remove(); menu = null; }
+                  return true;
+                }
+                return false;
+              },
+              onExit() { if (menu) { menu.remove(); menu = null; } },
+            };
+          },
+        }),
+      ];
+    },
+  });
+
+  // ── Create editor ──────────────────────────────────────────────────────
+  const contentEl = eid('detail-content');
+  contentEl.innerHTML = '';   // clear rendered HTML; Tiptap takes over
+
+  const editor = new EditorClass({
+    element:    contentEl,
+    extensions: [
+      StarterKit,
+      Markdown.configure({ html: true, tightLists: true }),
+      Link.configure({ openOnClick: false, HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' } }),
+      SlashExt,
+    ],
+    content:   markdownContent || '',
+    autofocus: false,
+    editable:  true,
+    onUpdate:  () => scheduleAutosave(),
+    onBlur:    () => { clearTimeout(_saveTimer); performSave(); },
+    onSelectionUpdate: ({ editor: e }) => {
+      updateBubbleMenu(e, bubbleEl);
+    },
+    onTransaction: ({ editor: e }) => {
+      syncBubbleButtons(e, bubbleEl);
+    },
+  });
+
+  state.editor = editor;
+
+  // ── Bubble menu positioning ────────────────────────────────────────────
+  // Manual positioning via selection bounds (avoids tippy.js dependency).
+  function updateBubbleMenu(e, el) {
+    const { from, to } = e.state.selection;
+    if (from === to || e.isActive('codeBlock')) {
+      el.classList.remove('vis');
+      return;
+    }
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) { el.classList.remove('vis'); return; }
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    if (!rect || rect.width === 0) { el.classList.remove('vis'); return; }
+    const menuW = 160;   // approximate width
+    const menuH = 36;
+    const left  = Math.max(8, Math.min(rect.left + rect.width / 2 - menuW / 2,
+                                        window.innerWidth - menuW - 8));
+    const top   = rect.top - menuH - 8;
+    if (top < 4) { el.classList.remove('vis'); return; }
+    el.style.left = left + 'px';
+    el.style.top  = top  + 'px';
+    el.classList.add('vis');
+  }
+
+  function syncBubbleButtons(e, el) {
+    el.querySelectorAll('[data-cmd]').forEach(btn => {
+      const c = btn.dataset.cmd;
+      btn.classList.toggle('is-active',
+        c === 'bold'   ? e.isActive('bold')   :
+        c === 'italic' ? e.isActive('italic') :
+        c === 'code'   ? e.isActive('code')   :
+        c === 'link'   ? e.isActive('link')   :
+        false
+      );
+    });
+  }
+
+  // Bubble button actions
+  bubbleEl.addEventListener('mousedown', (ev) => {
+    const btn = ev.target.closest('[data-cmd]');
+    if (!btn) return;
+    ev.preventDefault();
+    const c = btn.dataset.cmd;
+    if (c === 'bold')   editor.chain().focus().toggleBold().run();
+    if (c === 'italic') editor.chain().focus().toggleItalic().run();
+    if (c === 'code')   editor.chain().focus().toggleCode().run();
+    if (c === 'link') {
+      const existing = editor.getAttributes('link').href || '';
+      const url = window.prompt('Enter link URL:', existing);
+      if (url === null) return;
+      if (!url.trim()) editor.chain().focus().unsetLink().run();
+      else              editor.chain().focus().setLink({ href: url.trim() }).run();
+    }
+  });
+
+  // Hide bubble menu when clicking outside
+  document.addEventListener('mousedown', (ev) => {
+    if (!bubbleEl.contains(ev.target)) bubbleEl.classList.remove('vis');
+  }, { capture: true });
+
+  // ── Block + button ─────────────────────────────────────────────────────
+  const addBtn = _getBlockAddBtn();
+  const BLOCK_SEL = 'p, h1, h2, h3, ul, ol, blockquote, pre';
+
+  function positionAddBtn(block) {
+    if (!block || !editor.view.dom.contains(block)) return;
+    if (window.innerWidth < 640) return;  // no room on narrow screens
+    const rect = block.getBoundingClientRect();
+    const left = Math.round(rect.left - 36);
+    if (left < 4) return;
+    addBtn.style.top  = Math.round(rect.top + rect.height / 2 - 11) + 'px';
+    addBtn.style.left = left + 'px';
+    addBtn.classList.add('vis');
+    addBtn._targetBlock = block;
+  }
+
+  editor.view.dom.addEventListener('mouseover', (ev) => {
+    if (_blockAddHov) return;
+    const block = ev.target.closest(BLOCK_SEL);
+    if (block) positionAddBtn(block);
+  });
+  editor.view.dom.addEventListener('mouseleave', () => {
+    if (!_blockAddHov) addBtn.classList.remove('vis');
+  });
+  addBtn.addEventListener('mouseenter', () => { _blockAddHov = true; addBtn.classList.add('vis'); });
+  addBtn.addEventListener('mouseleave', () => { _blockAddHov = false; addBtn.classList.remove('vis'); });
+
+  addBtn.onclick = () => {
+    const block = addBtn._targetBlock;
+    if (!block || !editor) return;
+    const endPos = editor.view.posAtDOM(block, block.childNodes.length);
+    editor.chain()
+      .focus()
+      .insertContentAt(endPos + 1, { type: 'paragraph' })
+      .run();
+    addBtn.classList.remove('vis');
+  };
+
+  // Hide + button on scroll (it will reappear on next hover)
+  window.addEventListener('scroll', () => {
+    if (_blockAddBtn) { _blockAddBtn.classList.remove('vis'); _blockAddHov = false; }
+  }, { passive: true });
+
+  // ── Inline title editing ───────────────────────────────────────────────
+  const titleEl = eid('detail-title');
+  if (titleEl) {
+    titleEl.contentEditable = 'true';
+    titleEl.setAttribute('spellcheck', 'false');
+    titleEl.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); editor.commands.focus(); }
+    });
+    titleEl.addEventListener('input', () => scheduleAutosave());
+    titleEl.addEventListener('blur',  () => { clearTimeout(_saveTimer); performSave(); });
+  }
+
+  // ── Download button — use live editor content ──────────────────────────
+  const dlBtn = eid('detail-download-btn');
+  if (dlBtn) {
+    dlBtn.onclick = () => {
+      const content = state.editor
+        ? state.editor.storage.markdown.getMarkdown()
+        : (state.currentItem ? state.currentItem.content || '' : '');
+      const title   = (eid('detail-title') ? eid('detail-title').textContent.trim() : '')
+                    || state.currentItemTitle || 'item';
+      const itm     = state.currentItem || {};
+      const lines   = [
+        '# ' + title,
+        '',
+        'Type: '       + (itm.type || 'knowledge'),
+        'Added: '      + longDate(itm.created_at || ''),
+        'Tags: '       + ((itm.tags || []).filter(t => t && t !== 'untagged').join(', ') || '—'),
+      ];
+      if (itm.source_ref && itm.source_ref !== 'source not recorded' && itm.source_ref.trim()) {
+        lines.push('Source: ' + itm.source_ref);
+      }
+      lines.push('Provenance: ' + (itm.provenance || 'personal'));
+      lines.push('', '---', '', content);
+      const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = slugify(title) + '.md'; a.click();
+      URL.revokeObjectURL(url);
+    };
+  }
+
+  console.log('[editor] ready — item', itemId);
+}
 
 // ── Browser back / forward ─────────────────────────────────────────────────
 
