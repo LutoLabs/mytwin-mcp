@@ -41,7 +41,6 @@
     "api/admin/backfill-pinecone-types.js":{ "maxDuration": 300 },
     "api/admin/seed-invites.js":           { "maxDuration": 60  },
     "api/admin/dashboard.js":             { "maxDuration": 30  },
-    "api/admin/mint-test-token.js":        { "maxDuration": 15  },
     "api/twin/knowledge/index.js":         { "maxDuration": 30  },
     "api/twin/knowledge/[id].js":          { "maxDuration": 15  },
     "api/twin/document.js":                { "maxDuration": 60  },
