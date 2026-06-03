@@ -444,6 +444,9 @@ header.site-header {
   padding: 2px 6px; border-radius: 3px;
 }
 .vis-badge.vis-sharable { background: #e8f4ed; color: #2d7d4d; }
+.vis-badge.vis-readonly { background: var(--paper-3); color: var(--muted); }
+.ws-role-badge { background: var(--paper-3); color: var(--muted); }
+.ws-group-head { display: flex; align-items: center; gap: 10px; margin: 18px 0 10px; }
 /* Toggle button in detail view */
 .vis-toggle {
   display: inline-flex; align-items: center; gap: 5px;
@@ -1218,6 +1221,14 @@ body.embed { background: var(--paper); }
     <div id="shared-grid" class="card-grid" role="list"></div>
   </section>
 
+  <!-- Shared with you (workspaces) — org workspaces this member belongs to, grouped -->
+  <section class="shared-section" id="ws-shared-section" hidden style="margin-bottom:28px;">
+    <div class="section-head">
+      <span class="section-label" id="ws-shared-label">Shared with you</span>
+    </div>
+    <div id="ws-shared-wrap"></div>
+  </section>
+
   <section class="items-section">
     <div class="section-head">
       <span class="section-label" id="section-label">Items</span>
@@ -1334,6 +1345,8 @@ const state = {
   visibilityFilter: null,  // null = all, 'private', 'sharable'
   brainView:       'library', // 'library' (raw items) | 'wiki' (compiled pages)
   conceptData:     null,      // cached /api/library/concepts response
+  workspaceShares:    [],     // [{ workspace, items }] — org workspaces shared with this user
+  hasWorkspaceShares: false,
   // Inline editor
   editor:           null,
   currentItemId:    null,
@@ -2081,6 +2094,8 @@ function setBrainView(view) {
   if (meta)       meta.hidden       = !lib;
   if (items)      items.hidden      = !lib;
   if (shared)     shared.hidden     = !lib || !state.hasSharedItems;
+  const wsShared = eid('ws-shared-section');
+  if (wsShared)   wsShared.hidden   = !lib || !state.hasWorkspaceShares;
   if (concepts)   concepts.hidden   = !wiki;
   if (leaderboard) leaderboard.hidden = !team;
 
@@ -2175,6 +2190,146 @@ function makeSharedCard(item) {
   return card;
 }
 
+// ── Shared with you (workspaces) ─────────────────────────────────────────────
+// The org workspaces this member belongs to, each showing the records
+// contributed to it. Everything is gated server-side: /api/workspaces returns
+// only the user's workspaces, and /api/workspaces/:id/items returns only items
+// the caller is entitled to (membership + group-restriction filter). The client
+// only renders what the scoped payload returns — it never filters for security.
+async function loadWorkspaceShares() {
+  const section = eid('ws-shared-section');
+  const wrap    = eid('ws-shared-wrap');
+  if (!section || !wrap) return;
+  try {
+    const { workspaces } = await api('/api/workspaces');
+    if (!workspaces || !workspaces.length) {
+      state.hasWorkspaceShares = false; state.workspaceShares = [];
+      section.hidden = true; wrap.innerHTML = '';
+      return;
+    }
+    const settled = await Promise.allSettled(
+      workspaces.map(ws =>
+        api('/api/workspaces/' + encodeURIComponent(ws.id) + '/items')
+          .then(res => ({ workspace: ws, items: res.items || [], your_role: res.your_role || ws.role }))
+      )
+    );
+    const groups = settled
+      .filter(s => s.status === 'fulfilled' && s.value.items.length > 0)
+      .map(s => s.value);
+    const total = groups.reduce((n, g) => n + g.items.length, 0);
+    state.workspaceShares = groups;
+    state.hasWorkspaceShares = total > 0;
+    if (!state.hasWorkspaceShares) { section.hidden = true; wrap.innerHTML = ''; }
+    else {
+      eid('ws-shared-label').textContent = 'Shared with you · ' + total;
+      renderWorkspaceShares();
+    }
+    // Re-apply view gating in case the async resolve landed after setBrainView.
+    setBrainView(state.brainView);
+  } catch (e) {
+    console.error('[library] workspace shares fetch failed:', e);
+    state.hasWorkspaceShares = false; state.workspaceShares = [];
+    section.hidden = true;
+  }
+}
+
+function wsRoleLabel(role) {
+  if (role === 'owner') return 'Owner';
+  if (role === 'admin') return 'Admin · view';
+  if (role === 'guest') return 'Guest · view only';
+  return 'Member · view only';
+}
+
+function renderWorkspaceShares() {
+  const wrap = eid('ws-shared-wrap');
+  wrap.innerHTML = '';
+  state.workspaceShares.forEach(({ workspace, items, your_role }) => {
+    const head = el('div', 'ws-group-head');
+    head.appendChild(el('span', 'section-label', workspace.name || 'Workspace'));
+    head.appendChild(el('span', 'vis-badge ws-role-badge', wsRoleLabel(your_role)));
+    wrap.appendChild(head);
+    const grid = el('div', 'card-grid');
+    grid.setAttribute('role', 'list');
+    items.forEach(it => grid.appendChild(makeWorkspaceItemCard(it, workspace)));
+    wrap.appendChild(grid);
+  });
+}
+
+function makeWorkspaceItemCard(item, workspace) {
+  const card = el('article', 'page-card ' + stripClass(item.type));
+  card.setAttribute('role', 'listitem');
+  card.setAttribute('tabindex', '0');
+  card.setAttribute('aria-label', cardTitle(item));
+
+  card.appendChild(el('span', 'card-eyebrow', typeLabel(item.type)));
+  card.appendChild(el('h3', 'card-title', cardTitle(item)));
+  card.appendChild(el('p', 'card-snippet', snippet(item.content)));
+
+  const meta = el('div', 'card-meta');
+  meta.appendChild(el('span', 'card-meta-date', shortDate(item.created_at)));
+  if (item.contributor_email) {
+    meta.appendChild(el('span', 'card-meta-sep', '·'));
+    meta.appendChild(el('span', 'card-meta-owner', 'by ' + item.contributor_email));
+  }
+  meta.appendChild(el('span', 'card-meta-sep', '·'));
+  meta.appendChild(el('span', 'vis-badge vis-readonly', '👁 View only'));
+  card.appendChild(meta);
+
+  // Read-only open — NEVER routes through loadDetail/fetchItem (that hits the
+  // member's own tenant and would 404 on a cross-tenant workspace item).
+  const open = () => openWorkspaceItem(item, workspace);
+  card.addEventListener('click', open);
+  card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+  return card;
+}
+
+// Read-only detail render for a workspace item, reusing the #view-detail DOM
+// WITHOUT any owner affordances and WITHOUT a cross-tenant fetch. Content comes
+// from the already-server-scoped /workspaces/:id/items payload.
+function openWorkspaceItem(item, workspace) {
+  if (state.editor) { try { destroyEditor(); } catch {} }
+  showView('view-detail');
+
+  // Reset sections (mirror loadDetail's reset).
+  ['detail-title','detail-meta-row','detail-tags','detail-content'].forEach(sid => {
+    const e = eid(sid); if (e) e.innerHTML = '';
+  });
+  eid('detail-source').hidden = true;
+  eid('detail-parts').hidden = true;
+  eid('detail-concepts-section').hidden = true;
+  eid('detail-related-section').hidden = true;
+  eid('detail-version-history').hidden = true;
+  eid('detail-living-badge').hidden = true;
+
+  // Hard-disable every owner/mutation affordance — this is a view-only surface.
+  ['detail-vis-toggle','detail-share-btn','detail-contribute-btn','detail-edit-btn','detail-done-btn','detail-download-btn']
+    .forEach(bid => { const b = eid(bid); if (b) { b.hidden = true; b.onclick = null; } });
+
+  // Type pill + breadcrumb + title.
+  eid('detail-type-pill').textContent = typeLabel(item.type);
+  eid('detail-type-pill').className = 'detail-type-pill ' + stripClass(item.type);
+  if (eid('bc-type'))  eid('bc-type').textContent  = typeLabel(item.type);
+  if (eid('bc-title')) eid('bc-title').textContent = cardTitle(item);
+  eid('detail-title').textContent = cardTitle(item);
+
+  // Meta row — make the shared provenance explicit.
+  eid('detail-meta-row').textContent = [
+    'Shared in ' + (workspace.name || 'workspace'),
+    item.contributor_email ? 'by ' + item.contributor_email : 'by a member',
+    'Added ' + longDate(item.created_at),
+    typeLabel(item.type),
+  ].join('  ·  ');
+
+  // Tags.
+  const tagsEl = eid('detail-tags');
+  (item.tags || []).filter(t => t && t !== 'untagged').forEach(t => {
+    tagsEl.appendChild(el('span', 'tag-chip', t));
+  });
+
+  // Body (read-only markdown).
+  eid('detail-content').innerHTML = renderMarkdown(item.content || '');
+}
+
 // ── Items section (fetch + render) ─────────────────────────────────────────
 
 async function renderItemsSection(append = false) {
@@ -2218,6 +2373,7 @@ async function loadIndex() {
     loadConceptSections(),
     renderItemsSection(),
     loadSharedWithMe(),
+    loadWorkspaceShares(),
   ]);
   // Apply the active Wiki/Library view (Library by default).
   setBrainView(state.brainView);
