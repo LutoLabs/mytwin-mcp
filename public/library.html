@@ -259,6 +259,12 @@ header.site-header {
   font-size: 9px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.18em; color: var(--muted); margin-top: 4px;
 }
+.concept-stale-badge {
+  display: inline-block; margin-left: 8px;
+  padding: 1px 6px; border-radius: 3px;
+  background: var(--yellow, #FFE34A); color: var(--ink, #0F0E0D);
+  font-size: 8px; letter-spacing: 0.12em;
+}
 .concept-card-title {
   font-family: 'Source Serif 4', Georgia, serif;
   font-size: 17px; font-weight: 500; line-height: 1.25;
@@ -1913,14 +1919,21 @@ function makeConceptCard(page) {
   card.setAttribute('tabindex', '0');
 
   const flavourLabel = page.flavour === 'knowledge' ? 'Knowledge' : 'Skills';
-  card.appendChild(el('span', 'concept-card-label', flavourLabel + ' · v' + page.version));
+  const label = el('span', 'concept-card-label', flavourLabel + ' · v' + page.version);
+  if (page.is_stale) {
+    label.appendChild(el('span', 'concept-stale-badge', 'Updating'));
+  }
+  card.appendChild(label);
   card.appendChild(el('h3', 'concept-card-title', page.title));
   card.appendChild(el('p', 'concept-card-summary', page.summary));
 
   const foot = el('div', 'concept-card-foot');
+  // Agent-maintained marker — these are compiled, not human-authored.
+  foot.appendChild(el('span', null, '✦ Agent-maintained'));
+  foot.appendChild(el('span', 'card-meta-sep', '·'));
   foot.appendChild(el('span', null, (page.source_ids || []).length + ' sources'));
   foot.appendChild(el('span', 'card-meta-sep', '·'));
-  foot.appendChild(el('span', null, relativeTime(page.updated_at)));
+  foot.appendChild(el('span', null, page.is_stale ? 'recompiling soon' : relativeTime(page.updated_at)));
   card.appendChild(foot);
 
   const go = () => {

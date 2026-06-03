@@ -17,13 +17,34 @@
 // of an eternal "still compiling": too few items, a real failure, or simply
 // "not built yet" with a Compile-now affordance.
 //
-// ConceptPage: { id, flavour, title, summary, version, source_ids, updated_at }
+// ConceptPage: { id, flavour, title, summary, version, source_ids, updated_at, is_stale, stale_since }
 
 import { methodGuard, runTwin } from '../../lib/twin-api.js';
 import { getDB } from '../../lib/supabase.js';
 import { getRecentBackgroundLog } from '../../lib/background-log.js';
 
-const SELECT = 'id, flavour, title, summary, version, source_ids, updated_at';
+const SELECT      = 'id, flavour, title, summary, version, source_ids, updated_at, is_stale, stale_since';
+// Fallback for the window between this deploy and migration 024 landing — the
+// staleness columns won't exist yet, so a select naming them errors. We retry
+// with the base columns and default is_stale=false so the Wiki keeps working.
+const SELECT_BASE = 'id, flavour, title, summary, version, source_ids, updated_at';
+
+async function fetchPages(db, ctx) {
+  const q = (cols) => db
+    .from('concept_pages')
+    .select(cols)
+    .eq('user_id',   ctx.userId)
+    .eq('tenant_id', ctx.tenantId)
+    .order('updated_at', { ascending: false });
+
+  const withStale = await q(SELECT);
+  if (!withStale.error) return withStale;
+
+  const fallback = await q(SELECT_BASE);
+  if (fallback.error) return fallback;
+  fallback.data = (fallback.data || []).map(p => ({ ...p, is_stale: false, stale_since: null }));
+  return fallback;
+}
 
 export default async function handler(req, res) {
   if (!methodGuard(req, res, ['GET'])) return;
@@ -34,12 +55,7 @@ export default async function handler(req, res) {
       const db = getDB();
 
       const [pagesRes, countRes, compileLog] = await Promise.all([
-        db
-          .from('concept_pages')
-          .select(SELECT)
-          .eq('user_id',   ctx.userId)
-          .eq('tenant_id', ctx.tenantId)
-          .order('updated_at', { ascending: false }),
+        fetchPages(db, ctx),
         db
           .from('knowledge')
           .select('id', { count: 'exact', head: true })

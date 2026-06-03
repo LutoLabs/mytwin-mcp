@@ -10,9 +10,9 @@
 
 import { serve } from 'inngest/next';
 import { inngest } from '../lib/inngest.js';
-import { compileConceptsJob, detectSkillJob, nightlyLintJob } from '../lib/background-jobs.js';
+import { compileConceptsJob, recompileStaleJob, detectSkillJob, nightlyLintJob } from '../lib/background-jobs.js';
 
 export default serve({
   client:    inngest,
-  functions: [compileConceptsJob, detectSkillJob, nightlyLintJob],
+  functions: [compileConceptsJob, recompileStaleJob, detectSkillJob, nightlyLintJob],
 });
