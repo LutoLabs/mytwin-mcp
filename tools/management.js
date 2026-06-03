@@ -16,11 +16,11 @@ function sbError(op, error) {
 export async function listRecent(ctx, { limit = 10, type } = {}) {
   const db = getDB();
 
-  let query = db.from('knowledge').select('*').eq('user_id', ctx.userId).eq('tenant_id', ctx.tenantId).order('created_at', { ascending: false }).limit(limit);
+  let query = db.from('knowledge').select('*', { count: 'exact' }).eq('user_id', ctx.userId).eq('tenant_id', ctx.tenantId).order('created_at', { ascending: false }).limit(limit);
   if (type) query = query.eq('type', type);
   if (ctx.visibilityFilter === 'sharable') query = query.eq('visibility', 'sharable');
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) throw sbError('management', error);
 
   return {
@@ -35,7 +35,8 @@ export async function listRecent(ctx, { limit = 10, type } = {}) {
       source_ref: formatSource(row) || 'source not recorded',
       created_at: row.created_at || 'source not recorded',
     })),
-    count: data?.length || 0,
+    count:       data?.length || 0,       // items returned in this page (≤ limit)
+    total_count: count ?? data?.length ?? 0, // true DB total regardless of limit
   };
 }
 

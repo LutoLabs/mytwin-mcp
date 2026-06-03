@@ -38,7 +38,7 @@ function todayIso() {
 // Built from the canonical spec at docs/twin-behaviour-spec.md. Anything that
 // touches user-facing prose lives here, in one place, so a change shows up
 // in every chat turn at once.
-export function chatInstruction({ mode, hasResults, hasSkill, skillGap, today, stage, spell, hasConceptPages, hasShared }) {
+export function chatInstruction({ mode, hasResults, hasSkill, skillGap, today, stage, spell, hasConceptPages, hasShared, itemCount }) {
   const lines = [
     `You are MyAITwin running inside the /twin web chat (myaitwin.lutolearn.com/twin). You are not an assistant. You are a thinking partner. Today is ${today}.`,
     stage ? stageGuidance(stage) : '',
@@ -49,8 +49,12 @@ export function chatInstruction({ mode, hasResults, hasSkill, skillGap, today, s
     'You hold wonder and competence at the same time. Wonder: the coffee-buzz energy of someone who finds this work genuinely exciting. Competence: clear-eyed honesty about what is in the twin, what is thin, what is missing. Never perform optimism. Never hedge into uselessness.',
     'Reciprocate the user energy. Terse user, brief reply. Excited user, match it. Reflective user, slow down.',
     '',
+    typeof itemCount === 'number' && itemCount > 0
+      ? `TWIN SIZE: This twin holds ${itemCount} items in total. Never state a different number when the user asks about their store.`
+      : '',
+    '',
     'IF THE USER ASKS WHAT YOU ARE / WHAT YOU CAN DO / HOW TO USE THIS:',
-    'Briefly explain: they build you by adding things worth keeping. You propose a structured record before storing anything, so storage is always deliberate. They ask questions and you answer using what they have added, citing each source inline with type and date. The Reflect button (active at 3+ items) runs a synthesis. You can also be installed in Claude or ChatGPT via MCP so the same twin follows them across tools.',
+    'Briefly explain: you store things worth keeping (propose before storing, always), retrieve them with inline source citations so the user sees where each idea came from, help them think through and discuss anything, and help them write using their stored material and voice. You can also be installed in Claude or ChatGPT via MCP so the same twin follows them across tools. The Reflect button (active at 3+ items) runs a full synthesis.',
   ];
 
   // Mode-specific instructions
@@ -62,7 +66,7 @@ export function chatInstruction({ mode, hasResults, hasSkill, skillGap, today, s
       'Before writing a single word, read the skills bucket fully, then the knowledge bucket. Assemble both. Then write. Do not grab material piecemeal while composing.',
       hasSkill
         ? 'A skill is present. Before producing the output, write one short line stating what you drew on. Example: "Pulling your LinkedIn voice from March and your meeting notes from this week." The output should sound like them, grounded in that skill.'
-        : 'No matching skill exists yet. Be honest about it: say "No specific skill stored for this yet. This is a capable draft, not your established voice. Worth codifying once we get it right." Then produce the output using their stored knowledge. Do not imply the output sounds like them when it was improvised.',
+        : 'No matching skill exists yet. Produce the draft first — do not preface it with any skill note. After the complete draft, on a new line, add one brief sentence: "No skill stored for this yet — worth saving this as a starting point?" Do not imply the output sounds like them when it was improvised.',
       'Cite each item inline using its number in square brackets, like [1] or [2].',
       'Anti-AI-soup: extract their original work, do not generate generic synthesis on top of it. Connective tissue only.',
       'SHOW WHAT YOU USED (spec §4.4): open the output with one short line naming what you drew on, skills and knowledge items both. Example: "I drew on your LinkedIn voice from March and your notes from yesterday\'s meeting." Name only skills and items actually present in the buckets above, never invented ones.',
@@ -91,6 +95,9 @@ export function chatInstruction({ mode, hasResults, hasSkill, skillGap, today, s
       hasResults
         ? 'Relevant items from the user\'s twin are in <untrusted_knowledge> below. Use them. Cite each item inline using its number in square brackets, like [1] or [2].'
         : 'No relevant items were retrieved. If the question is about the user\'s thinking and there is nothing stored, say so plainly: "Your twin has nothing on this yet." Then answer from general knowledge if useful, and invite them to add their view. Never present general knowledge as the user\'s stored thinking.',
+      '',
+      'IF THE USER ASKED FOR AN ACTION (contribute items to a workspace, share, export, compile, compare across all items, etc.):',
+      'This web chat does not have workspace or bulk-operation tools. Be direct and helpful: tell them what you cannot do here and where they can do it (the library, settings, or by installing the twin in Claude Desktop via MCP). Never fall back to asking "Are you storing this or chatting?" — that question is for ambiguous content, not for commands the user has stated clearly.',
     );
   }
 
@@ -100,7 +107,7 @@ export function chatInstruction({ mode, hasResults, hasSkill, skillGap, today, s
       'CONCEPT PAGES (in <concept_pages> before the raw knowledge blocks):',
       'These are high-level synthesised patterns distilled from the user\'s full twin.',
       'Reference them to give richer, more grounded answers — they represent the user\'s deeper thinking, not just individual items.',
-      'Do not cite concept pages with [N] brackets. Draw on them naturally, as background context.',
+      'Do NOT write "[concept page N]" anywhere in your response. This is a hard rule — any such token renders as a broken placeholder. Draw on concept page content naturally in prose, with no bracket reference.',
     );
   }
 
@@ -110,7 +117,7 @@ export function chatInstruction({ mode, hasResults, hasSkill, skillGap, today, s
     'Only name a specific stored item (by title, record name, tag, or description) if it appears in the knowledge context above for THIS turn. If the user asks about a record you cannot find there, say so plainly, for example "Nothing on that in what I retrieved this turn." Never invent a record, title, tag, or date, even when the conversation implies one should exist. Never propose, confirm, or build a plan against a named item you have not actually retrieved. This is the companion to voice honesty: be honest about what is and is not in retrieval.',
     '',
     'CITATION FORMAT (spec §4.1 — anti-AI-soup, inline provenance):',
-    'When you reference a retrieved item, write [N] inline using the item\'s number. The frontend renders this as a small chip showing the item\'s type and date, so the user always sees provenance without leaving the response. Do not list citations at the bottom. Do not invent items.',
+    'When you reference a retrieved item, write [N] inline using the item\'s number. The frontend renders this as a clickable chip so the user always sees provenance without leaving the response. Do not list citations at the bottom. Do not invent items.',
     hasShared
       ? 'SHARED ITEMS: Some retrieved items were shared with the user by another person (marked "Shared with you by another person" in context). Draw on them as material, but attribute them honestly. Never present a shared item as the user\'s own thinking or voice.'
       : '',
@@ -158,6 +165,7 @@ BIAS HEAVILY TOWARD CHAT. Storage is a deliberate act. If you are not confident 
 - Casual reactions: "cool", "nice", "ok", "got it"
 - Requests for help producing something: "help me write X", "draft me a Y", "I am working on Z"
 - Conversational fragments under ~10 words
+- Action commands (not storage): "contribute X", "share X to workspace", "summarise my X", "compare X and Y", "export X", "compile concepts", "show me my schema", "show me patterns". Route these to chat (mode: general) — never store.
 
 === When intent = chat, set chat_mode ===
 - "creation": user is asking you to help PRODUCE something (write, draft, compose, generate, help me with X). They want output. Detect the output_type if possible: "linkedin-post", "follow-up-email", "proposal", "tweet", "blog-post", "essay", etc.
@@ -182,6 +190,8 @@ BIAS HEAVILY TOWARD CHAT. Storage is a deliberate act. If you are not confident 
 - "Help me write a..." / "Draft a..." → chat (mode: creation), set output_type.
 - Anything ending in "?" → chat unless it's part of a longer captured thought.
 - "Remember this" or "save this" → store. Skip ambiguous.
+- A bare topic phrase (no question mark, no explicit storage verb, under ~12 words) → chat (mode: browse). The user is asking about a topic, not storing it. Examples: "Franklin's moral algebra.", "Franklin on frugality.", "momentum and shipping.", "my principles on leadership."
+- When there is no explicit storage signal ("remember", "store", "save", "capture", "keep", "log", "note this") → default to chat. Reserve AMBIGUOUS only for multi-sentence declarative content where store vs. chat is genuinely unclear.
 
 === When intent = store, generate a proposal ===
 - title: 3-7 words, descriptive, drawn from the content
@@ -394,8 +404,10 @@ function buildKnowledgeBlock(items, tagName = 'untrusted_knowledge') {
 }
 
 function citationsFor(items) {
-  return items.map(r => ({
+  return items.map((r, i) => ({
     id:           r.id,
+    item_id:      r.id,    // frontend renderCitations looks for item_id
+    index:        i + 1,   // [1] in model output matches index 1 here
     type:         r.type,
     title:        r.title,
     display_ref:  r.display_ref,
@@ -604,9 +616,14 @@ export default async function handler(req, res) {
       // from earlier turns (e.g. user said the substance, then "store it"). When
       // present it is the content to store; otherwise the current message is.
       const { content_override, ...proposalFields } = classification.proposal;
+      const rawContent = content_override || text;
+      // Strip common command-verb prefixes so the stored substance is clean.
+      // "Store this as a principle: X" → "X". "Remember this: X" → "X".
+      const COMMAND_PREFIX_RE = /^(?:store(?:\s+this)?|save(?:\s+this)?|remember(?:\s+this)?|capture(?:\s+this)?|note(?:\s+this)?|keep(?:\s+this)?|log(?:\s+this)?)(?:\s+as\s+(?:a\s+|an\s+)?[\w-]+)?\s*[:\s]+/i;
+      const cleanedContent = rawContent.replace(COMMAND_PREFIX_RE, '').trim() || rawContent;
       sse.send('meta', {
         kind: 'store-proposal',
-        proposal: { ...proposalFields, content: content_override || text },
+        proposal: { ...proposalFields, content: cleanedContent },
         confidence: classification.confidence,
       });
       sse.send('done', {});
@@ -708,9 +725,12 @@ export default async function handler(req, res) {
     const citations = citationsFor(allItems);
 
     let stage = 'comfortable';
+    let itemCount = 0;
     try {
       const recent = await listRecent(ctx, { limit: 100 });
-      stage = inferStage(recent.count || 0);
+      // total_count is the true DB count (count: 'exact'); count is the page size.
+      itemCount = recent.total_count ?? recent.count ?? 0;
+      stage = inferStage(itemCount);
     } catch { /* non-fatal */ }
 
     // Build drift prompt — only include if the background log has stale docs
@@ -767,6 +787,7 @@ export default async function handler(req, res) {
         spell:          spell?.action,
         hasConceptPages,
         hasShared:      allItems.some(it => it.shared),
+        itemCount,
       }),
       signal: abort.signal,
       onText: (delta) => sse.send('token', { text: delta }),

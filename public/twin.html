@@ -1806,7 +1806,12 @@ function renderMarkdown(text) {
 // withLinks = false (default): strip [N] markers (used during streaming)
 // withLinks = true: replace [N] with clickable links to library items (used on done)
 function renderCitations(text, citations, withLinks) {
-  const cleaned = sanitizeTwinText(text);
+  // Strip internal token patterns the model occasionally leaks into prose.
+  // "[concept page N]" and "[item N]" are backend context markers, never user-facing.
+  const stripped = (text || '')
+    .replace(/\[concept page \d+\]/gi, '')
+    .replace(/\[item \d+\]/gi, '');
+  const cleaned = sanitizeTwinText(stripped);
   const base = renderMarkdown(cleaned);
   if (!withLinks || !citations || !citations.length) {
     return base.replace(/\[\d+\]/g, '');
