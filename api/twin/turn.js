@@ -21,6 +21,7 @@ import { logAudit }                             from '../../lib/audit.js';
 import { checkAndIncrementCap, capExceededBody } from '../../lib/caps.js';
 import { searchTwin, searchForCreation }        from '../../tools/retrieval.js';
 import { listRecent }                           from '../../tools/management.js';
+import { bulkContribute }                       from '../../tools/workspaces.js';
 import { streamTwin, callFastJson }             from '../../lib/anthropic.js';
 import { getConceptContext }                    from '../../lib/concept-context.js';
 import { getRecentBackgroundLog }               from '../../lib/background-log.js';
@@ -54,7 +55,7 @@ export function chatInstruction({ mode, hasResults, hasSkill, skillGap, today, s
       : '',
     '',
     'IF THE USER ASKS WHAT YOU ARE / WHAT YOU CAN DO / HOW TO USE THIS:',
-    'Briefly explain: you store things worth keeping (propose before storing, always), retrieve them with inline source citations so the user sees where each idea came from, help them think through and discuss anything, and help them write using their stored material and voice. You can also be installed in Claude or ChatGPT via MCP so the same twin follows them across tools. The Reflect button (active at 3+ items) runs a full synthesis.',
+    'Briefly explain: you store things worth keeping (propose before storing, always), retrieve them with inline source citations so the user sees where each idea came from, help them think through and discuss anything, help them write using their stored material and voice, and contribute their items to a shared workspace. You can also be installed in Claude or ChatGPT via MCP so the same twin follows them across tools. The Reflect button (active at 3+ items) runs a full synthesis.',
   ];
 
   // Mode-specific instructions
@@ -96,8 +97,11 @@ export function chatInstruction({ mode, hasResults, hasSkill, skillGap, today, s
         ? 'Relevant items from the user\'s twin are in <untrusted_knowledge> below. Use them. Cite each item inline using its number in square brackets, like [1] or [2].'
         : 'No relevant items were retrieved. If the question is about the user\'s thinking and there is nothing stored, say so plainly: "Your twin has nothing on this yet." Then answer from general knowledge if useful, and invite them to add their view. Never present general knowledge as the user\'s stored thinking.',
       '',
-      'IF THE USER ASKED FOR AN ACTION (contribute items to a workspace, share, export, compile, compare across all items, etc.):',
-      'This web chat does not have workspace or bulk-operation tools. Be direct and helpful: tell them what you cannot do here and where they can do it (the library, settings, or by installing the twin in Claude Desktop via MCP). Never fall back to asking "Are you storing this or chatting?" — that question is for ambiguous content, not for commands the user has stated clearly.',
+      'IF THE USER ASKED TO CONTRIBUTE ITEMS TO A WORKSPACE:',
+      'This is fully supported in this chat — you do not need to redirect them. The system detects the contribute intent and shows a confirmation card automatically. If the user follows up asking about the status or asks again, confirm that the contribute action is available here.',
+      '',
+      'IF THE USER ASKED FOR ANOTHER ACTION THIS CHAT CANNOT PERFORM (export, compare across all items, etc.):',
+      'Be direct and helpful: tell them what you cannot do here and where they can do it (the library, settings, or by installing the twin in Claude Desktop via MCP). Never fall back to asking "Are you storing this or chatting?" — that question is for ambiguous content, not for commands the user has stated clearly.',
     );
   }
 
@@ -217,6 +221,22 @@ BIAS HEAVILY TOWARD CHAT. Storage is a deliberate act. If you are not confident 
 === content_override (conversation-aware storage) ===
 Normally leave content_override blank. ONLY set it when the user's current message is a short reference to content from earlier in the conversation (for example, the substance was stated a turn or two ago and the user now says "store it" or "save that as a contact"). In that case reconstruct the actual content to store from the conversation above and put it in content_override. When the current message itself carries the substance, leave content_override blank so the server stores the message verbatim.
 
+=== CONTRIBUTE signals ===
+Route to contribute (not store, not chat) when the user clearly wants to copy their items into a shared/org workspace:
+- "contribute everything to [workspace]", "contribute all my items"
+- "share everything with the team / workspace", "push everything to the shared workspace"
+- "put everything in the workspace", "contribute my [type] to the workspace"
+- "contribute my [tag] items", "push my principles to [workspace name]"
+
+When intent = contribute, generate contribute_proposal:
+- scope: 'all' if unqualified or "everything"; 'by-type' if the user specifies a type (e.g. "my principles"); 'by-tag' if a tag/topic is named
+- scope_type: the type string when scope='by-type' (e.g. "principle", "skill")
+- scope_tag: the tag string when scope='by-tag'
+- workspace_hint: the workspace name the user mentioned, if any
+
+Contribute is NOT store. Do not mix them. "Contribute everything" → contribute (scope: 'all'), never store.
+A contribute command is never ambiguous — the user's intent is clear.
+
 === When intent = store and tags are weak (less than 3 substantive ones) ===
 The content may be too thin to store well. Still propose, but the user will see the thin tag set in the card and can decide. Do not invent nonsense tags to pad the count.
 
@@ -233,7 +253,7 @@ For any prose you generate (clarifying_question), follow Luto voice: short sente
 const INTENT_SCHEMA = {
   type: 'object',
   properties: {
-    intent:      { type: 'string', enum: ['chat', 'store', 'ambiguous'] },
+    intent:      { type: 'string', enum: ['chat', 'store', 'ambiguous', 'contribute'] },
     chat_mode:   { type: 'string', enum: ['general', 'creation', 'browse', 'recent'] },
     output_type: { type: 'string' },
     confidence:  { type: 'number' },
@@ -250,6 +270,17 @@ const INTENT_SCHEMA = {
         content_override:    { type: 'string' },
       },
       required: ['title', 'type', 'tags', 'provenance'],
+      additionalProperties: false,
+    },
+    contribute_proposal: {
+      type: 'object',
+      properties: {
+        scope:          { type: 'string', enum: ['all', 'by-type', 'by-tag'] },
+        scope_type:     { type: 'string' },
+        scope_tag:      { type: 'string' },
+        workspace_hint: { type: 'string' },
+      },
+      required: ['scope'],
       additionalProperties: false,
     },
   },
@@ -638,6 +669,42 @@ export default async function handler(req, res) {
         text: classification.clarifying_question
           || 'Want me to remember this, or are we just chatting?',
       });
+      sse.send('done', {});
+      sse.close();
+      return;
+    }
+
+    // ── CONTRIBUTE branch ──────────────────────────────────────────────────
+    // Resolves the full item set server-side (never limited by chat context),
+    // does a dry-run to get the count, then sends a confirmation card to the
+    // frontend. The user clicks "Contribute" → /api/twin/bulk-contribute POST.
+    if (classification.intent === 'contribute') {
+      try {
+        const cp = classification.contribute_proposal || { scope: 'all' };
+        const preview = await bulkContribute(ctx, {
+          scope:        cp.scope      || 'all',
+          scope_type:   cp.scope_type || null,
+          scope_tag:    cp.scope_tag  || null,
+          workspace_id: null,   // auto-resolve; workspace_hint is advisory only
+          dry_run:      true,
+        });
+        sse.send('meta', {
+          kind:           'contribute-proposal',
+          total:          preview.total,
+          workspace_id:   preview.workspace_id,
+          workspace_name: preview.workspace_name,
+          scope:          preview.scope,
+          scope_type:     preview.scope_type,
+          scope_tag:      preview.scope_tag,
+        });
+      } catch (err) {
+        // Surface workspace resolution errors (no workspace, multiple workspaces,
+        // permission denied) as a plain text response rather than a silent failure.
+        sse.send('meta', {
+          kind: 'ambiguous',
+          text: err?.userFacing ? err.message : 'Something went wrong resolving the workspace. Try again.',
+        });
+      }
       sse.send('done', {});
       sse.close();
       return;

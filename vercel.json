@@ -52,6 +52,7 @@
     "api/twin/synthesise.js":              { "maxDuration": 60  },
     "api/twin/patterns.js":                { "maxDuration": 60  },
     "api/twin/turn.js":                    { "maxDuration": 60  },
+    "api/twin/bulk-contribute.js":         { "maxDuration": 120 },
     "api/twin/classify-intent.js":         { "maxDuration": 20  },
     "api/twin/confirm-store.js":           { "maxDuration": 30  },
     "api/library/concepts/[id].js":        { "maxDuration": 15  },

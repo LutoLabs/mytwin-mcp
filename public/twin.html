@@ -1982,6 +1982,73 @@ async function confirmStore(proposal, chosenType, isLiving, chosenProvenance, ca
   }
 }
 
+// ── Workspace contribute card ─────────────────────────────────────────────────
+// Shown when the classifier routes a contribute command. Mirrors the store
+// proposal pattern: dry-run count is shown, user confirms, then the real
+// POST to /api/twin/bulk-contribute runs.
+
+function renderContributeProposal(data) {
+  const card = el('div', 'proposal');
+
+  const scopeDesc = data.scope === 'by-type' && data.scope_type
+    ? `${data.total} ${data.scope_type} item${data.total === 1 ? '' : 's'}`
+    : data.scope === 'by-tag' && data.scope_tag
+      ? `${data.total} item${data.total === 1 ? '' : 's'} tagged "${data.scope_tag}"`
+      : `all ${data.total} item${data.total === 1 ? '' : 's'}`;
+
+  card.appendChild(el('div', 'proposal-intro',
+    `Contribute ${scopeDesc} to "${data.workspace_name}"?`));
+
+  const grid = el('div', 'proposal-fields');
+  grid.appendChild(el('div', 'proposal-label', 'Items'));
+  grid.appendChild(el('div', 'proposal-value', String(data.total)));
+  grid.appendChild(el('div', 'proposal-label', 'Workspace'));
+  grid.appendChild(el('div', 'proposal-value', data.workspace_name));
+  grid.appendChild(el('div', 'proposal-label', 'Effect'));
+  grid.appendChild(el('div', 'proposal-value', 'Copies added to the workspace. Originals unchanged.'));
+  card.appendChild(grid);
+
+  const actions = el('div', 'proposal-actions');
+  const btnConfirm = el('button', 'proposal-btn-primary', 'Contribute');
+  const btnCancel  = el('button', 'proposal-btn-secondary', 'Not now');
+  btnConfirm.onclick = () => confirmContribute(data, card);
+  btnCancel.onclick  = () => {
+    card.querySelectorAll('button').forEach(b => b.disabled = true);
+    renderTwin('Cancelled.');
+  };
+  actions.appendChild(btnConfirm);
+  actions.appendChild(btnCancel);
+  card.appendChild(actions);
+  appendMsg(twinRow(card));
+}
+
+async function confirmContribute(data, cardEl) {
+  cardEl.querySelectorAll('button').forEach(b => b.disabled = true);
+  cardEl.querySelector('.proposal-btn-primary').textContent = 'Contributing…';
+  const loading = renderLoading();
+  try {
+    const result = await api('/api/twin/bulk-contribute', {
+      method: 'POST',
+      body: JSON.stringify({
+        scope:        data.scope,
+        scope_type:   data.scope_type  || undefined,
+        scope_tag:    data.scope_tag   || undefined,
+        workspace_id: data.workspace_id,
+        dry_run:      false,
+      }),
+    });
+    loading.remove();
+    const msg = result.failed > 0
+      ? `Contributed ${result.contributed} item${result.contributed === 1 ? '' : 's'} to "${data.workspace_name}". ${result.failed} couldn’t be contributed.`
+      : `Done. ${result.contributed} item${result.contributed === 1 ? '' : 's'} contributed to "${data.workspace_name}".`;
+    renderTwin(msg);
+    state.history.push({ role: 'assistant', content: msg });
+  } catch (err) {
+    loading.remove();
+    renderSystem('Something went wrong contributing. ' + escapeHtml(err.message || '') + ' Try again.');
+  }
+}
+
 function renderSynthesis(payload) {
   const card = el('div', 'msg-synthesis');
   card.appendChild(el('div', 'msg-synthesis-eyebrow', 'WHAT I SEE SO FAR'));
@@ -2261,6 +2328,11 @@ $inputForm.addEventListener('submit', async (e) => {
           renderTwin(data.text || 'Want me to remember this, or are we just chatting?');
           state.history.push({ role: 'user', content: text });
           state.history.push({ role: 'assistant', content: data.text || '' });
+        } else if (data.kind === 'contribute-proposal') {
+          loading.remove();
+          renderContributeProposal(data);
+          state.history.push({ role: 'user', content: text });
+          state.history.push({ role: 'assistant', content: `[Contribute proposal shown: ${data.total} items → "${data.workspace_name}". Awaiting confirmation.]` });
         } else if (data.kind === 'chat') {
           // RC5 fix (sub-phase 7C): keep the contained loading indicator on
           // screen until the FIRST token arrives. Previously we removed it here
