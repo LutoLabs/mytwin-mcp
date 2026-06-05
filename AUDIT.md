@@ -16,7 +16,15 @@ _Branch: `pre-launch-audit` (off `4872849`). Pass 1 = audit (read-only). Pass 2 
 - **(e) chat blind to its own surfaces:** also `chatInstruction()` capability text — **system-prompt-zone**. Review-only. Exact proposed fix below.
 - All **architecture refactors** (god-function `turn.js`, duplicated helpers, retrieval duplication) and all **security/data-model** items — out of gate by design.
 
-**Honest verdict:** **This codebase is in good shape to keep building on and to launch this weekend.** The bones are sound — clean `tools/` / `lib/` / `api/` separation, a single ingestion chokepoint, a solid signed-JWT auth model, *tested* cross-tenant isolation, SSRF guards, and real cost guardrails on the LLM paths. There are **no structural blockers.** The genuine pre-launch gaps are (1) thin automated test coverage, (2) a few prompt-polish items (b/c/e), and (3) some should-fix refactors that are safe to defer. Launch is reasonable; the items below are the watch-list, not a wall.
+**Top 5 highest-leverage optimisations to do first tomorrow** (full roadmap below; all S-effort except where noted):
+1. **P1 — kill the 100-row count refetch** in stage inference (`head:true` count). Every turn lighter + faster. _S._
+2. **D1 — store-confirmation toast + pulse** (replace the "In. Filed." hard cut). Every capture feels premium. _S._
+3. **B1 — Anthropic prompt caching** on the system + concept/knowledge blocks. ~20–30% token & latency on chat. _S, measure spend first._
+4. **E1 — consolidate the duplicated helpers** (`sbError` ×3, `formatSource` ×2 with a real null-handling divergence) into `lib/knowledge-helpers.js`. Safest elegance win; removes a latent bug. _S._
+5. **P3 — parallelise multi-item ingestion** (`addFromUrl`/`addVoiceNote` → batched like `addDocument`). 5-item URL ingest ~2s → ~0.4s. _M._
+   _Bonus standout (free power): **B2** — once reconciliation Phase 3 writes `item_links`, render them as typed edges on the hypergraph — the brain becomes a real knowledge graph for almost no effort._
+
+**Honest verdict:** **This codebase is in good shape to keep building on and to launch this weekend.** The bones are sound — clean `tools/` / `lib/` / `api/` separation, a single ingestion chokepoint, a solid signed-JWT auth model, *tested* cross-tenant isolation, SSRF guards, real cost guardrails, and one genuinely exemplary subsystem (`lib/reconciliation/*`) to copy from. There are **no structural blockers.** The optimisation lens surfaced no alarms either — the inefficiencies are ordinary (a redundant count query, an extra Haiku hop, serial ingestion loops), all cheap to fix, none load-bearing. The genuine pre-launch gaps are (1) thin automated test coverage, (2) a few prompt-polish items (b/c/e), and (3) safe-to-defer refactors. Launch is reasonable; everything below is a prioritised menu, not a wall.
 
 ---
 
@@ -110,4 +118,53 @@ Only these passed all five gate conditions (definite bug · small/localised · r
 
 ---
 
-_End of audit. Two safe fixes applied on this branch; everything else reported for review per the gate._
+---
+
+# OPTIMISATION ROADMAP (tomorrow's work — nothing here changed tonight)
+
+Ranked by leverage (impact ÷ effort). Effort S/M/L. Optimisations and refactors **never** pass the safe-fix gate, so all of this is for tomorrow, executed carefully.
+
+## A. Performance & power (make the hot paths faster/lighter)
+
+| # | What | Better method | Effort | Gain | Risk |
+|---|------|---------------|--------|------|------|
+| P1 | **Stage-inference refetches up to 100 full rows just for a count** (`turn.js` ~L797 → `management.js#listRecent` does `select('*',{count:'exact'}).limit(100)`) | Use a head-count: `select('id',{count:'exact',head:true})` — no rows, no content. Verified real (I wrote the `total_count` path). | S | 20–100 KB + ~50–150 ms off **every** turn on large twins | none |
+| P2 | **A second Haiku call on the latency-critical chat path** — `concept-context.js` relevance-filters concept pages with its own Haiku call (when >4 pages), so there are **2 LLM round-trips before the first streamed token** | Fold concept-relevance into the main classifier's JSON output, OR raise the keyword-only threshold (≤8), OR go embedding-based (B3) | M | ~50–100 ms latency + ~20% Haiku cost off chat turns | low — validate picks vs current Haiku |
+| P3 | **Serial multi-item ingestion** — `addFromUrl`/`addVoiceNote` loop `await addKnowledge` per item (each = autoTag+embed+insert+upsert); `addDocument` already batches with `Promise.all` | Apply the same `Promise.all`/batched pattern to the URL + voice paths | M | 50–70% faster multi-item ingest (5-item URL ~2s → ~0.4s) | low |
+| P4 | **recompileStalePages scans all items per stale page** (O(N×M)) | Precompute per-item term sets once, intersect per page (O(N+M)) | M | ~100 ms per recompile burst | none |
+| P5 | **`select('*')` everywhere in retrieval + listRecent** pulls `content`/`pinecone_id`/`version` the caller doesn't use | Select only needed columns | S | 30–50 KB per search/turn (mobile) | none |
+| P6 | **Indexes** (report-only — schema = review zone, do NOT change tonight): hot queries filter `tenant_id + user_id + created_at` but the index is `(tenant_id, created_at)`; `getByTag` has no GIN on `tags` | Add `(tenant_id,user_id,created_at desc)` + `GIN(tags)` — for the review-only DB pass | S | 10–30% on hot queries at scale | review-only |
+
+## B. Better methods & capability uplift
+
+| # | What | Better method | Effort | Gain |
+|---|------|---------------|--------|------|
+| B1 | **No prompt caching** on the heavy system prompt + concept/knowledge blocks | Anthropic `cache_control: ephemeral` on the stable system block — cache across turns in a session | S | **20–30% token + latency** on chat (measure spend first) |
+| B2 | **Hypergraph edges are tag-overlap only** (`api/profile/hypergraph.js`) | Once reconciliation Phase 3 writes `item_links`, draw **typed** edges (elaborates/supersedes), colour + hover by kind. The brain becomes a real knowledge graph, not a tag cloud. **The data is already being produced in shadow.** | S (post-Phase-3) | **High** power + delight — ties two systems together for nearly free |
+| B3 | Concept-relevance filter is an LLM call | Embed concept title+summary on compile (own Pinecone namespace); pick relevant pages by cosine, fall back to Haiku only on low confidence | M | cheaper + faster concept context |
+| B4 | Near-duplicate stale-marking is keyword-based | The reconciliation engine already computes nearest-neighbour scores — mark an old item stale when a new one lands at >0.97 sim. Unifies cruft-flagging in one place | S–M | proactive dedup signal |
+
+## C. Elegance & strength (highest-leverage simplifications for safe future building)
+
+| # | What | Better method | Effort | Risk |
+|---|------|---------------|--------|------|
+| E1 | **Duplicated helpers** — `sbError` defined 3× (`storage.js`,`management.js`,`schema-tools.js`), `formatSource` 2× with **divergent null-handling** (a latent bug) | One `lib/knowledge-helpers.js`, canonical versions, import everywhere | S | negligible — pure functions |
+| E2 | **`turn.js` ~880-line god function** | Extract `handlers/{classifier,spells,retrieval-stage,streaming,drift}.js` + a thin orchestrator. Lock behaviour with tests first, then move (no logic change) | M | low if tests-first |
+| E3 | **Retrieval triplet** (`searchTwin`/`getByType`/`getByTag`) repeats ~200 lines of permission-aware merge/rank/fetch | Extract `fetchAccessibleResults(ctx,{ids})` — own+shared+workspace once | M | low — test the permission edges |
+| E4 | **Per-page inline JS** (twin/library/profile = 1k–3k lines each) duplicate `api()`, card rendering, markdown, auth-sync | Shared `public/modules/*.mjs` (static ES modules, no bundler) | M–L | medium |
+| E5 | **Two auth contracts** (`runTwin`/`requireTenant` vs `requireAuth`) | One `getRequestContext(req,{requireAuth})` with caps/audit hooks | M | low |
+| — | **`lib/reconciliation/*` is the model to copy**, not refactor — clean module split, shadow+reversible from day one. Extend new subsystems this way. | — | — | — |
+
+## D. Delight (cheap, calm/premium — the small moments)
+
+| # | What | Effort | Leverage |
+|---|------|--------|----------|
+| D1 | **Store-confirmation moment** — replace the "In. Filed." hard cut with a quiet "✓ Saved" toast + a soft card fade-out + the ack fading up. Every capture should feel good. | S | **9/10** |
+| D2 | **Kind empty states** — "Nothing on that yet" → an invitation ("What's the first thing worth keeping?") with a calm centred mark, per mode | S–M | **9/10** |
+| D3 | **Library skeleton stagger** — fade cards in with a small per-card delay (gradual abundance, not a dump) | S | 7/10 |
+| D4 | **Brain page life** — fade nodes in on load + reuse the `home-next` breathing-halo hover; pairs with the surfacing moment just shipped | S | 7/10 |
+| D5 | **Compile-concepts ack** — a "compiling…/✓ compiled" toast (needs a tiny status endpoint) so the async job is visible | M | 5/10 |
+
+---
+
+_End of audit + optimisation roadmap. Two safe fixes applied on this branch (`20f8bc6`, `e4c9fa0`); all optimisations and review-only items left for tomorrow per the gate._
