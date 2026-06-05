@@ -1810,6 +1810,7 @@ function renderCitations(text, citations, withLinks) {
   // "[concept page N]" and "[item N]" are backend context markers, never user-facing.
   const stripped = (text || '')
     .replace(/\[concept page \d+\]/gi, '')
+    .replace(/\[[A-Z]+ PATTERN\]/g, '')
     .replace(/\[item \d+\]/gi, '');
   const cleaned = sanitizeTwinText(stripped);
   const base = renderMarkdown(cleaned);
