@@ -101,6 +101,28 @@ header.site-header {
 #hypergraph-status .hg-line2 { color: var(--dim-2); margin-top: 8px; font-size: 11px; }
 #hypergraph-status { z-index: 4; }
 
+/* The surfacing moment — a line about your own mind, on arrival. */
+.brain-surfacing {
+  position: absolute; top: 22px; left: 22px; right: auto; z-index: 6;
+  max-width: 360px;
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 15px; line-height: 1.5; letter-spacing: -0.005em;
+  color: #EDE7DC;
+  background: rgba(8, 10, 14, 0.42);
+  -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 13px 16px; border-radius: 9px;
+  animation: surfacing-in 1000ms cubic-bezier(.2,.7,.2,1) both;
+  animation-delay: 750ms;
+  pointer-events: none;
+}
+.brain-surfacing .bs-em { color: #FFE34A; font-style: normal; }
+@keyframes surfacing-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (max-width: 640px) { .brain-surfacing { max-width: 78vw; font-size: 14px; } }
+
 /* three.js layers (sub-phase 3) */
 #hypergraph-container #scene { position: absolute; inset: 0; z-index: 0; }
 #hypergraph-container #scene canvas { display: block; cursor: grab; }
@@ -317,6 +339,7 @@ body.grabbing, body.grabbing #hypergraph-container #scene canvas { cursor: grabb
       <div class="hg-line2" id="hg-detail"></div>
     </div>
   </div>
+  <div id="brain-surfacing" class="brain-surfacing" hidden></div>
 </div>
 <div id="tip"></div>
 <div id="ph-add" class="ph-overlay ph-add">+</div>
@@ -352,7 +375,7 @@ body.grabbing, body.grabbing #hypergraph-container #scene canvas { cursor: grabb
       <div class="stats-row">
         <div class="stat">
           <div class="stat-num" id="stat-items">—</div>
-          <div class="stat-label">Items</div>
+          <div class="stat-label">Bricks laid</div>
         </div>
         <div class="stat" id="stat-concept-wrap">
           <div class="stat-num" id="stat-concepts">—</div>
@@ -530,6 +553,45 @@ function renderProfile(data) {
 
 // ── Hypergraph data wiring ───────────────────────────────────────────────────
 let _hgDispose = null;
+// The surfacing moment: one line about the user's own mind, computed from the
+// graph data already fetched. Pure delight — wrapped so it can never break the
+// page; a failure just leaves the element hidden.
+function renderSurfacingMoment(graph) {
+  try {
+    const el = document.getElementById('brain-surfacing');
+    if (!el) return;
+    const nodes = graph.nodes || [];
+    if (nodes.length < 3) return;                      // too sparse for a moment
+    const domains = graph.domains || {};
+    const human = s => String(s || '').replace(/[-_]+/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
+
+    // Densest domain (most nodes).
+    let topDomain = null, topCount = 0;
+    for (const [k, v] of Object.entries(domains)) {
+      const c = (v.node_ids || []).length;
+      if (c > topCount) { topCount = c; topDomain = k; }
+    }
+    // Additions in the last 30 days.
+    const now = Date.now();
+    const recent = nodes.filter(n => n.created_at && (now - new Date(n.created_at).getTime()) < 30 * 864e5).length;
+    // The hub — most-connected node.
+    let hub = null, hubDeg = -1;
+    for (const n of nodes) { const d = n.degree || 0; if (d > hubDeg) { hubDeg = d; hub = n; } }
+
+    let html;
+    if (recent >= 3 && topDomain && topCount >= 2) {
+      html = `You added <span class="bs-em">${recent}</span> things this month. <span class="bs-em">${human(topDomain)}</span> is the densest region of your mind right now, ${topCount} nodes wired together. Something is forming there.`;
+    } else if (topDomain && topCount >= 3) {
+      const hubBit = (hub && hubDeg > 1 && hub.title) ? `, with “${hub.title.slice(0, 46)}” at its center` : '';
+      html = `<span class="bs-em">${human(topDomain)}</span> is the densest region of your mind, ${topCount} nodes wired together${hubBit}.`;
+    } else {
+      html = `<span class="bs-em">${nodes.length}</span> nodes, and the connections are starting to form.`;
+    }
+    el.innerHTML = html;
+    el.hidden = false;
+  } catch (e) { /* surfacing is a delight, never a failure */ }
+}
+
 async function loadHypergraph() {
   const status = document.getElementById('hypergraph-status');
   const detail = document.getElementById('hg-detail');
@@ -551,6 +613,7 @@ async function loadHypergraph() {
     status.hidden = true;
     if (_hgDispose) { _hgDispose(); _hgDispose = null; }
     _hgDispose = renderHypergraph(g);
+    renderSurfacingMoment(g);
   } catch (err) {
     if (_hgDispose) { _hgDispose(); _hgDispose = null; }
     status.hidden = false;
