@@ -1,0 +1,110 @@
+{
+  "description": "Golden eval set for the reconciliation relationship classifier. Each case is a (fragment, existing item) pair with the expected relationship(s). Seeded from the brief's five required cases plus real corrections mined from the live store. expected_any lists acceptable labels (some pairs legitimately admit two).",
+  "cases": [
+    {
+      "name": "semantic-duplicate-no-shared-words",
+      "note": "The flagship case: same decision, zero shared keywords. Must NOT be DISTINCT.",
+      "item": {
+        "type": "knowledge",
+        "title": "First cohort gets the best models",
+        "content": "Cohort one runs on the strongest available models, no compromise on quality for the founding users.",
+        "updated_at": "2026-05-20"
+      },
+      "fragment": {
+        "text": "Piotr personally covers the model cost for cohort one so they always get the top-tier models.",
+        "created_at": "2026-06-01"
+      },
+      "expected_any": ["DUPLICATE", "REFINEMENT"]
+    },
+    {
+      "name": "real-supersede-50-function-cap",
+      "note": "A genuine correction from the live store replacing an earlier wrong belief.",
+      "item": {
+        "type": "knowledge",
+        "title": "The project is capped at 50 serverless functions",
+        "content": "Deploys fail past 50 functions because the project hit its hard limit of 50 serverless functions; we must delete a function to add one.",
+        "updated_at": "2026-06-03"
+      },
+      "fragment": {
+        "text": "CORRECTION: the '50-function cap' is a vercel.json schema limit (the functions object allows at most 50 keys), NOT a limit on deployed functions — the project already deploys 93. Fix is a glob, not deleting endpoints.",
+        "created_at": "2026-06-04"
+      },
+      "expected_any": ["SUPERSEDE"]
+    },
+    {
+      "name": "contradiction-cohort-size",
+      "note": "Two notes that cannot both be true.",
+      "item": {
+        "type": "knowledge",
+        "title": "Cohort one is small and hand-picked",
+        "content": "The first cohort is deliberately under 20 people so each can be onboarded personally.",
+        "updated_at": "2026-05-15"
+      },
+      "fragment": {
+        "text": "Cohort one will be around 100 users — we want scale from the start.",
+        "created_at": "2026-06-02"
+      },
+      "expected_any": ["CONTRADICTION"]
+    },
+    {
+      "name": "elaboration-instance-under-principle",
+      "note": "A specific instance under a general principle — keep apart, link.",
+      "item": {
+        "type": "principle",
+        "title": "Premium by execution, not by claim",
+        "content": "The product should feel premium through the quality of how it is made, never by stating it is premium in the copy.",
+        "updated_at": "2026-05-10"
+      },
+      "fragment": {
+        "text": "On the landing page, we deleted the word 'premium' and instead let the live hypergraph demo carry the feeling of quality.",
+        "created_at": "2026-06-01"
+      },
+      "expected_any": ["ELABORATION"]
+    },
+    {
+      "name": "hard-distinct-topically-near",
+      "note": "The false-merge trap: same domain (cohorts), conceptually separate claims.",
+      "item": {
+        "type": "knowledge",
+        "title": "Cohort one gets the best models",
+        "content": "Founding users run on the strongest models available.",
+        "updated_at": "2026-05-20"
+      },
+      "fragment": {
+        "text": "Cohort one members will each get a personal onboarding call with Piotr.",
+        "created_at": "2026-06-02"
+      },
+      "expected_any": ["DISTINCT", "ELABORATION"]
+    },
+    {
+      "name": "refinement-adds-detail",
+      "note": "Same claim, sharper — should version, not duplicate.",
+      "item": {
+        "type": "principle",
+        "title": "Reconcile before storing",
+        "content": "Incoming fragments should be reconciled against existing items before they become new items.",
+        "updated_at": "2026-06-01"
+      },
+      "fragment": {
+        "text": "Reconcile before storing — and a false merge is worse than a false duplicate, so risky relationships like SUPERSEDE need higher confidence than safe ones.",
+        "created_at": "2026-06-04"
+      },
+      "expected_any": ["REFINEMENT"]
+    },
+    {
+      "name": "clean-distinct-unrelated",
+      "note": "Genuinely unrelated — must be DISTINCT.",
+      "item": {
+        "type": "resource",
+        "title": "Tiptap is the editor choice for the Library",
+        "content": "Use the MIT Tiptap core for in-place Markdown editing of Library documents.",
+        "updated_at": "2026-05-28"
+      },
+      "fragment": {
+        "text": "Benjamin Franklin treated mistakes as 'errata' — typos to correct in the next edition rather than sources of shame.",
+        "created_at": "2026-06-03"
+      },
+      "expected_any": ["DISTINCT"]
+    }
+  ]
+}
