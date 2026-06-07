@@ -168,7 +168,7 @@
     const note = el('p', 'shm-note'); note.innerHTML = 'Invite a specific person by email. They get access to <b>just this item</b>, at the level you choose.';
     body.appendChild(note);
     const row = el('div', 'shm-row');
-    const input = el('input', 'shm-input'); input.type = 'email'; input.placeholder = 'name@email.com';
+    const input = el('input', 'shm-input'); input.type = 'email'; input.placeholder = 'name@email.com'; input.setAttribute('aria-label', 'Email address to invite');
     const sel = el('select', 'shm-select'); SHARE_LEVELS.forEach(([v, l]) => { const o = el('option', null, l); o.value = v; sel.appendChild(o); });
     const send = el('button', 'shm-btn', 'Send');
     row.appendChild(input); row.appendChild(sel); row.appendChild(send);

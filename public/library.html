@@ -1122,7 +1122,7 @@ body.embed { background: var(--paper); }
       <div class="brain-view-toggle" role="group" aria-label="View">
         <button class="bvt-btn" data-view="wiki">Wiki</button>
         <button class="bvt-btn active" data-view="library">Library</button>
-        <button class="bvt-btn" data-view="team">Team</button>
+        <button class="bvt-btn" data-view="team" id="bvt-team" hidden>Team</button>
       </div>
     </div>
   </div>
@@ -2093,8 +2093,17 @@ async function runCompileNow(btn, container) {
   }
 }
 
+// H7: the Team leaderboard is a multiplayer feature — only meaningful inside a
+// shared workspace with >1 member. It is hidden from the personal-brain sub-nav,
+// where it would show an empty "just you" leaderboard and duplicate the member
+// management in Profile -> Settings. To re-enable it for a shared workspace,
+// return true here (and unhide #bvt-team) when the active brain is a shared
+// workspace with member_count > 1.
+function teamTabAvailable() { return false; }
+
 // Toggle between Library (raw items), Wiki (compiled pages), and Team (leaderboard).
 function setBrainView(view) {
+  if (view === 'team' && !teamTabAvailable()) view = 'library';   // H7
   state.brainView = view;
   document.querySelectorAll('.bvt-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.view === view);

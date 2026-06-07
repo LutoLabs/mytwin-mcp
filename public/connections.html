@@ -250,7 +250,7 @@ function cardHtml(p, conn, canConnect) {
     </div>`;
     if (p.auth_type === 'api_key') {
       body += `<div class="connect-form">
-        <input class="js-key" type="password" placeholder="Paste your ${esc(p.label)} API key" autocomplete="off" spellcheck="false" />
+        <input class="js-key" type="password" aria-label="${esc(p.label)} API key" placeholder="Paste your ${esc(p.label)} API key" autocomplete="off" spellcheck="false" />
         <button class="primary js-submit">Connect</button>
       </div>
       <div class="help">${esc(p.auth_help)}</div>`;
