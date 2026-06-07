@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Connections · MyAITwin</title>
+<meta name="description" content="Connect your meeting tools and let new transcripts flow into your twin automatically. Private by default." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;1,8..60,400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:   #f5f3ef;
+    --paper-2: #F5F4F1;
+    --paper-3: #EDEAE2;
+    --card:    #FBFAF6;
+    --ink:     #0F0E0D;
+    --ink-2:   #3A352E;
+    --muted:   #6B6760;
+    --line:    #E4E0D8;
+    --yellow:      #FFE34A;
+    --yellow-deep: #F5C500;
+    --mint:    #B8E5C8;
+    --sky:     #C8DCF0;
+    --lilac:   #E0D1F0;
+    --rose:    #F3C9C0;
+    --shadow-brutal: 3px 3px 0 var(--ink);
+    --shadow-soft:   2px 2px 0 var(--ink);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  a { color: inherit; }
+
+  /* ── Header ──────────────────────────────────────────────────────────── */
+  .site-header { border-bottom: 1.5px solid var(--ink); background: var(--paper-2); }
+  .header-inner { max-width: 920px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .logo-mark { width: 22px; height: 22px; background: var(--yellow); border: 1.5px solid var(--ink); border-radius: 6px; box-shadow: var(--shadow-soft); }
+  .logo-name { font-weight: 700; letter-spacing: -0.01em; }
+  .logo-by { font-size: 12px; color: var(--muted); margin-left: 6px; }
+  .signin-link { text-decoration: none; font-weight: 600; font-size: 14px; }
+
+  /* ── Surface nav ─────────────────────────────────────────────────────── */
+  nav.surface-nav { display: flex; justify-content: center; padding: 16px; }
+  .surface-nav-group { display: flex; gap: 4px; background: var(--paper-3); border: 1.5px solid var(--ink); border-radius: 999px; padding: 4px; box-shadow: var(--shadow-soft); flex-wrap: wrap; justify-content: center; }
+  .main-tab { text-decoration: none; font-weight: 600; font-size: 14px; color: var(--ink-2); padding: 7px 16px; border-radius: 999px; }
+  .main-tab.active { background: var(--yellow); color: var(--ink); box-shadow: var(--shadow-soft); border: 1.5px solid var(--ink); }
+
+  /* ── Layout ──────────────────────────────────────────────────────────── */
+  main { max-width: 920px; margin: 0 auto; padding: 8px 20px 80px; }
+  .page-head { margin: 12px 0 8px; }
+  .page-head h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  .page-head p { color: var(--ink-2); margin: 0; max-width: 62ch; }
+  .consent-note { margin: 16px 0 8px; padding: 12px 14px; background: var(--paper-3); border: 1.5px solid var(--ink); border-radius: 10px; font-size: 13.5px; color: var(--ink-2); }
+  .consent-note strong { color: var(--ink); }
+
+  .banner { margin: 16px 0; padding: 12px 14px; border: 1.5px solid var(--ink); border-radius: 10px; box-shadow: var(--shadow-soft); }
+  .banner.warn { background: var(--rose); }
+  .banner.info { background: var(--sky); }
+
+  /* ── Provider cards ──────────────────────────────────────────────────── */
+  .cards { display: grid; gap: 14px; margin-top: 18px; }
+  .card { background: var(--card); border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: var(--shadow-brutal); padding: 16px 18px; }
+  .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .card-title { display: flex; align-items: center; gap: 10px; }
+  .card-title h2 { font-size: 18px; margin: 0; }
+  .pill { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 999px; border: 1.5px solid var(--ink); }
+  .pill.connected { background: var(--mint); }
+  .pill.soon { background: var(--paper-3); color: var(--muted); }
+  .pill.error { background: var(--rose); }
+  .card-blurb { color: var(--ink-2); margin: 8px 0 4px; }
+  .card-meta { font-size: 13px; color: var(--muted); margin: 6px 0; }
+  .plan-note { font-size: 13px; color: var(--ink-2); background: var(--lilac); border: 1.5px solid var(--ink); border-radius: 8px; padding: 6px 10px; display: inline-block; margin-top: 6px; }
+  .card-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
+
+  /* ── Buttons + form ──────────────────────────────────────────────────── */
+  button, .btn { font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; border: 1.5px solid var(--ink); border-radius: 999px; padding: 8px 16px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow-soft); }
+  button:hover, .btn:hover { transform: translate(-1px,-1px); box-shadow: 3px 3px 0 var(--ink); }
+  button:active { transform: translate(0,0); box-shadow: 1px 1px 0 var(--ink); }
+  button.primary { background: var(--yellow); }
+  button.ghost { background: transparent; box-shadow: none; border-color: var(--line); color: var(--ink-2); }
+  button.danger { background: var(--rose); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: var(--shadow-soft); }
+  .connect-form { margin-top: 12px; display: none; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .connect-form.open { display: flex; }
+  .connect-form input { font-family: 'JetBrains Mono', monospace; font-size: 13px; padding: 9px 12px; border: 1.5px solid var(--ink); border-radius: 8px; background: #fff; min-width: 280px; flex: 1; }
+  .help { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+
+  /* ── Webhook reveal ──────────────────────────────────────────────────── */
+  .webhook-panel { margin-top: 14px; padding: 14px; border: 1.5px dashed var(--ink); border-radius: 10px; background: var(--paper-2); display: none; }
+  .webhook-panel.open { display: block; }
+  .webhook-panel h3 { margin: 0 0 8px; font-size: 15px; }
+  .kv { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+  .kv label { font-size: 12px; font-weight: 700; min-width: 64px; color: var(--ink-2); }
+  .kv code { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; background: #fff; border: 1.5px solid var(--line); border-radius: 6px; padding: 6px 9px; flex: 1; word-break: break-all; }
+  .kv button { padding: 6px 12px; font-size: 12.5px; }
+  .webhook-warn { font-size: 12.5px; color: var(--ink-2); margin-top: 8px; }
+
+  /* ── Toast ───────────────────────────────────────────────────────────── */
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--paper); padding: 11px 18px; border-radius: 999px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 50; max-width: 90vw; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .empty { color: var(--muted); padding: 24px 0; }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid var(--ink); border-top-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a href="/twin" class="logo" aria-label="MyAITwin home">
+      <span class="logo-mark"></span>
+      <span class="logo-text">
+        <span class="logo-name">MyAITwin</span>
+        <span class="logo-by">by Luto</span>
+      </span>
+    </a>
+    <div class="header-right">
+      <a href="/twin/library" class="signin-link">Your twin →</a>
+    </div>
+  </div>
+</header>
+
+<nav class="surface-nav" aria-label="Main actions">
+  <div class="surface-nav-group">
+    <a class="main-tab" href="/twin/chat">Store &amp; Search</a>
+    <a class="main-tab" href="/voice">Voice</a>
+    <a class="main-tab" href="/twin/library">Brain</a>
+    <a class="main-tab active" href="/voice/connections" aria-current="page">Connections</a>
+  </div>
+</nav>
+
+<main>
+  <div class="page-head">
+    <h1>Connections</h1>
+    <p>Connect your meeting tools once. Past transcripts get pulled in, and every new recording lands in your twin automatically — deduplicated, never twice.</p>
+  </div>
+
+  <div class="consent-note">
+    <strong>A note on consent.</strong> These connectors import transcripts of <strong>your own</strong> meetings. Transcripts contain other people’s words and private conversations — only connect what you’re comfortable keeping in your twin. Disconnecting removes our access and stops new imports.
+  </div>
+
+  <div id="banner-slot"></div>
+  <div id="cards" class="cards"><div class="empty"><span class="spinner"></span> Loading connections…</div></div>
+</main>
+
+<div id="toast"></div>
+
+<script type="module">
+'use strict';
+
+const STORAGE_KEY = 'mt_anon_token';
+const state = { token: null, data: null, busy: {} };
+
+// ── API client (mirrors /voice — shares the anon session; a signed-in session
+// cookie is sent automatically and takes precedence server-side). ────────────
+async function api(path, opts = {}) {
+  const headers = Object.assign(
+    { 'Content-Type': 'application/json' },
+    state.token ? { 'X-Anon-Token': state.token } : {},
+    opts.headers || {}
+  );
+  const res = await fetch(path, { ...opts, headers });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) { const e = new Error(body.error || `HTTP ${res.status}`); e.status = res.status; e.body = body; throw e; }
+  return body;
+}
+async function ensureSession() {
+  state.token = localStorage.getItem(STORAGE_KEY);
+  if (state.token) return;
+  try {
+    const { anonToken } = await api('/api/anon/init', { method: 'POST', body: '{}' });
+    state.token = anonToken; localStorage.setItem(STORAGE_KEY, anonToken);
+  } catch { /* a signed-in cookie still works without an anon token */ }
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+let toastT;
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
+function timeAgo(iso) {
+  if (!iso) return 'never';
+  const d = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (d < 60) return 'just now';
+  if (d < 3600) return `${Math.floor(d/60)}m ago`;
+  if (d < 86400) return `${Math.floor(d/3600)}h ago`;
+  return `${Math.floor(d/86400)}d ago`;
+}
+async function copy(text, label) { try { await navigator.clipboard.writeText(text); toast(`${label} copied`); } catch { toast('Copy failed — select it manually'); } }
+
+// ── load + render ─────────────────────────────────────────────────────────────
+async function load() {
+  try { state.data = await api('/api/connectors'); }
+  catch (e) { document.getElementById('cards').innerHTML = `<div class="banner warn">Couldn’t load connections: ${esc(e.message)}</div>`; return; }
+  render();
+}
+
+function render() {
+  const { configured, anonymous, providers, connections } = state.data;
+  const byProvider = {}; for (const c of (connections || [])) byProvider[c.provider] = c;
+
+  const bannerSlot = document.getElementById('banner-slot');
+  bannerSlot.innerHTML = '';
+  if (!configured) bannerSlot.innerHTML = `<div class="banner warn"><strong>Connectors aren’t switched on yet.</strong> The server is missing its credential-encryption key. Once it’s set, this page goes live.</div>`;
+  else if (anonymous) bannerSlot.innerHTML = `<div class="banner info"><strong>Sign in to connect your tools.</strong> Connections attach to your account so your transcripts follow you. <a href="/create">Create your twin →</a></div>`;
+
+  const canConnect = configured && !anonymous;
+  const cards = document.getElementById('cards');
+  cards.innerHTML = (providers || []).map(p => cardHtml(p, byProvider[p.id], canConnect)).join('');
+
+  // Wire up per-card buttons.
+  for (const p of (providers || [])) {
+    const conn = byProvider[p.id];
+    const root = document.getElementById(`card-${p.id}`);
+    if (!root) continue;
+    const q = (sel) => root.querySelector(sel);
+    q('.js-connect')?.addEventListener('click', () => q('.connect-form')?.classList.toggle('open'));
+    q('.js-submit')?.addEventListener('click', () => doConnect(p.id, q('.js-key')?.value));
+    q('.js-key')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') doConnect(p.id, q('.js-key').value); });
+    q('.js-sync')?.addEventListener('click', () => doSync(conn?.id, p.id));
+    q('.js-disconnect')?.addEventListener('click', () => doDisconnect(conn?.id, p.label));
+    root.querySelectorAll('.js-copy').forEach(b => b.addEventListener('click', () => copy(b.dataset.copy, b.dataset.label)));
+  }
+}
+
+function cardHtml(p, conn, canConnect) {
+  const connected = !!conn;
+  const err = conn && conn.status === 'error';
+  let pill = '';
+  if (p.status === 'coming-soon') pill = `<span class="pill soon">Coming soon</span>`;
+  else if (err) pill = `<span class="pill error">Needs attention</span>`;
+  else if (connected) pill = `<span class="pill connected">Connected</span>`;
+
+  const plan = p.plan_note ? `<div class="plan-note">⚠ ${esc(p.plan_note)}</div>` : '';
+
+  let body = `<p class="card-blurb">${esc(p.blurb)}</p>${plan}`;
+
+  if (connected) {
+    const count = conn.item_count || 0;
+    const bf = conn.backfill_done ? '' : ' · backfill in progress';
+    body += `<div class="card-meta">${esc(conn.display_name || p.label)} · ${count} transcript${count === 1 ? '' : 's'} · last synced ${timeAgo(conn.last_synced_at)}${bf}</div>`;
+    if (err && conn.last_error) body += `<div class="card-meta" style="color:#b3261e">${esc(conn.last_error)}</div>`;
+    body += `<div class="card-actions">
+      <button class="primary js-sync">Sync now</button>
+      <button class="danger js-disconnect">Disconnect</button>
+    </div>`;
+  } else if (p.status === 'available') {
+    body += `<div class="card-actions">
+      <button class="primary js-connect" ${canConnect ? '' : 'disabled'}>Connect ${esc(p.label)}</button>
+    </div>`;
+    if (p.auth_type === 'api_key') {
+      body += `<div class="connect-form">
+        <input class="js-key" type="password" placeholder="Paste your ${esc(p.label)} API key" autocomplete="off" spellcheck="false" />
+        <button class="primary js-submit">Connect</button>
+      </div>
+      <div class="help">${esc(p.auth_help)}</div>`;
+    }
+    body += `<div class="webhook-panel"></div>`;
+  } else {
+    body += `<div class="card-actions"><button class="ghost" disabled>Coming soon</button></div>`;
+  }
+
+  return `<div class="card" id="card-${p.id}">
+    <div class="card-top">
+      <div class="card-title"><h2>${esc(p.label)}</h2></div>
+      ${pill}
+    </div>
+    ${body}
+  </div>`;
+}
+
+// ── actions ──────────────────────────────────────────────────────────────────
+async function doConnect(provider, key) {
+  if (!key || !key.trim()) { toast('Paste your API key first'); return; }
+  const root = document.getElementById(`card-${provider}`);
+  const submit = root.querySelector('.js-submit');
+  submit.disabled = true; submit.innerHTML = '<span class="spinner"></span> Connecting…';
+  try {
+    const r = await api('/api/connectors/connect', { method: 'POST', body: JSON.stringify({ provider, api_key: key.trim() }) });
+    const b = r.backfill || {};
+    const got = (b.created || 0) + (b.updated || 0);
+    toast(got ? `Connected — ${got} transcript${got === 1 ? '' : 's'} imported${b.backfill_done ? '' : ', more on the way'}` : 'Connected');
+    await load();
+    // Reveal the webhook setup (secret is shown ONCE) on the freshly rendered card.
+    showWebhook(provider, r.webhook);
+  } catch (e) {
+    toast(e.message || 'Connect failed');
+    submit.disabled = false; submit.textContent = 'Connect';
+  }
+}
+
+function showWebhook(provider, webhook) {
+  if (!webhook) return;
+  const root = document.getElementById(`card-${provider}`);
+  const panel = root && root.querySelector('.webhook-panel');
+  if (!panel) return;
+  panel.classList.add('open');
+  panel.innerHTML = `
+    <h3>Last step: turn on automatic sync</h3>
+    <p class="help">Paste these into <strong>Fireflies → Settings → Developer Settings → Webhooks</strong>. Then every new meeting lands here within minutes.</p>
+    <div class="kv"><label>URL</label><code>${esc(webhook.url)}</code><button class="js-copy" data-copy="${esc(webhook.url)}" data-label="URL">Copy</button></div>
+    <div class="kv"><label>Secret</label><code>${esc(webhook.secret)}</code><button class="js-copy" data-copy="${esc(webhook.secret)}" data-label="Secret">Copy</button></div>
+    <div class="webhook-warn">⚠ The secret is shown only once. Save it now — if you lose it, reconnect to generate a new one.</div>`;
+  panel.querySelectorAll('.js-copy').forEach(b => b.addEventListener('click', () => copy(b.dataset.copy, b.dataset.label)));
+}
+
+async function doSync(id, provider) {
+  if (!id) return;
+  const root = document.getElementById(`card-${provider}`);
+  const btn = root.querySelector('.js-sync');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Syncing…';
+  try {
+    const r = await api('/api/connectors/sync', { method: 'POST', body: JSON.stringify({ id }) });
+    const s = r.sync || {};
+    const got = (s.created || 0) + (s.updated || 0);
+    toast(got ? `${got} new or updated · ${s.unchanged || 0} unchanged` : `Up to date · ${s.unchanged || 0} checked`);
+  } catch (e) { toast(e.message || 'Sync failed'); }
+  await load();
+}
+
+async function doDisconnect(id, label) {
+  if (!id) return;
+  if (!confirm(`Disconnect ${label}? New transcripts will stop importing. Already-imported documents stay in your twin.`)) return;
+  try { await api('/api/connectors/disconnect', { method: 'POST', body: JSON.stringify({ id }) }); toast(`${label} disconnected`); }
+  catch (e) { toast(e.message || 'Disconnect failed'); }
+  await load();
+}
+
+// ── boot ─────────────────────────────────────────────────────────────────────
+(async () => { await ensureSession(); await load(); })();
+</script>
+</body>
+</html>

@@ -19,6 +19,8 @@
     { "source": "/twin/library",   "destination": "/library.html" },
     { "source": "/twin/library/concept/:id", "destination": "/concept.html" },
     { "source": "/voice",          "destination": "/voice.html" },
+    { "source": "/voice/connections", "destination": "/connections.html" },
+    { "source": "/connections",       "destination": "/connections.html" },
     { "source": "/p/:slug",        "destination": "/api/p/[slug]" },
     { "source": "/mcp",                                    "destination": "/api/mcp" },
     { "source": "/mcp/shared/:token",                      "destination": "/api/mcp/shared/[token]" },
@@ -40,11 +42,15 @@
     "api/inngest.js":                       { "maxDuration": 300 },
     "api/twin/compile-concepts.js":         { "maxDuration": 300 },
     "api/admin/backfill-pinecone-types.js": { "maxDuration": 300 },
+    "api/connectors/connect.js":            { "maxDuration": 300 },
+    "api/connectors/sync.js":               { "maxDuration": 300 },
+    "api/cron/connector-poll.js":           { "maxDuration": 300 },
     "api/twin/bulk-contribute.js":          { "maxDuration": 120 },
     "api/admin/test-cross-tenant.js":       { "maxDuration": 120 },
     "api/**/*.js":                          { "maxDuration": 60  }
   },
   "crons": [
-    { "path": "/api/cron/inngest-sync", "schedule": "0 6 * * *" }
+    { "path": "/api/cron/inngest-sync",   "schedule": "0 6 * * *" },
+    { "path": "/api/cron/connector-poll", "schedule": "0 7 * * *" }
   ]
 }
