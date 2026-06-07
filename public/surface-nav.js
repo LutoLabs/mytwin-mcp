@@ -57,7 +57,7 @@
     injectStyles();
     // A7: skip link as the first focusable element, targeting the page's main content.
     if (!document.querySelector('.lx-skip')) {
-      var main = document.querySelector('main') || document.getElementById('page');
+      var main = document.querySelector('main, [role="main"]') || document.getElementById('page');
       if (main) {
         if (!main.id) main.id = 'lx-main';
         if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
