@@ -1318,12 +1318,14 @@
   </div>
 </div>
 
-<!-- ── Surface nav — centered tab strip below header ───────────────────────── -->
-<nav class="surface-nav" role="tablist" aria-label="Main navigation">
+<!-- Persistent action bar (replaces the old CHAT · BRAIN · VOICE toggle): the
+     three things you do with your twin, one hop from anywhere. The brand mark
+     above is home; the avatar holds Profile / Workspaces / Settings. -->
+<nav class="surface-nav" aria-label="Main actions">
   <div class="surface-nav-group">
-    <button class="main-tab active" data-tab="chat" role="tab">Chat</button>
-    <button class="main-tab" data-tab="wiki" role="tab">Brain</button>
-    <button class="main-tab" data-tab="voice" role="tab">Voice</button>
+    <a class="main-tab active" href="/twin/chat" aria-current="page">Store &amp; Search</a>
+    <a class="main-tab" href="/voice">Voice</a>
+    <a class="main-tab" href="/twin/library">Brain</a>
   </div>
 </nav>
 
@@ -1463,7 +1465,7 @@
     </div>
   </form>
   <div class="input-meta" id="input-meta">
-    Stored as you go, tagged automatically. Captures stay private. AI can make mistakes. Check anything that matters.
+    Thoughts get kept. Questions get answered. Nothing is stored without your nod. AI can make mistakes, so check anything that matters.
   </div>
 </div>
 
@@ -1576,9 +1578,15 @@ $claimForm?.addEventListener('submit', async e => {
 
   try {
     const tenantId = getAnonTenantId();
+    let ref = null;
+    try {
+      const u = new URLSearchParams(location.search).get('ref');
+      if (u && /^[A-Za-z0-9_-]{1,64}$/.test(u)) sessionStorage.setItem('mt_ref', u);
+      ref = sessionStorage.getItem('mt_ref') || null;
+    } catch (e) {}
     await api('/api/auth/claim', {
       method: 'POST',
-      body: JSON.stringify({ email, tenant_id: tenantId }),
+      body: JSON.stringify({ email, tenant_id: tenantId, ...(ref ? { referrer: ref } : {}) }),
     });
     $claimIdle.hidden = true;
     $claimSent.hidden = false;
@@ -1711,7 +1719,7 @@ async function showSigninGreeting() {
     const email = localStorage.getItem('mt_user_email') || '';
     const latest = all[0];
     if (latest) {
-      renderBot(`You're back. Your twin has ${all.length} compiled ${all.length === 1 ? 'concept' : 'concepts'} — *${latest.title}* is the latest thing I compiled.`);
+      renderBot(`You're back. Your twin has ${all.length} compiled ${all.length === 1 ? 'concept' : 'concepts'}. *${latest.title}* is the latest thing I compiled.`);
     } else {
       renderBot("You're back. Ready when you are.");
     }
@@ -1766,8 +1774,8 @@ function escapeHtml(s) {
 // `- ` is a list marker and `---` is a section break.
 function sanitizeTwinText(text) {
   return String(text)
-    .replace(/—/g, '. ')      // em dash -> sentence break
-    .replace(/–/g, ', ')      // en dash -> comma
+    .replace(/—/g, '. ')      // em dash -> sentence break  (lint-allow-dash)
+    .replace(/–/g, ', ')      // en dash -> comma  (lint-allow-dash)
     .replace(/\s+\./g, '.')   // tidy any double-spacing the substitutions cause
     .replace(/\.\s*\./g, '.');
 }
@@ -1877,6 +1885,25 @@ function renderTwin(text, citations) {
   body.innerHTML = renderCitations(text, citations);
   appendMsg(twinRow(body));
   return body;
+}
+
+// Append a "Share this answer" control under a finalised twin answer. Sharing
+// snapshots the answer text into a public artifact (the user sees it on screen
+// and confirms in the modal). Skipped for trivial answers and when the share
+// module is not loaded.
+function addAnswerShare(bodyNode, answerText, question) {
+  if (!bodyNode || !window.LutoShare) return;
+  if (!answerText || answerText.trim().length < 40) return;
+  if (bodyNode.querySelector('.answer-share')) return;
+  const bar = document.createElement('div');
+  bar.className = 'answer-share';
+  const btn = document.createElement('button');
+  btn.className = 'answer-share-btn';
+  btn.textContent = 'Share this answer';
+  const title = String(question || answerText).split('\n')[0].slice(0, 80);
+  btn.onclick = () => window.LutoShare.open({ resourceType: 'answer', title, answer: { content: answerText, title } });
+  bar.appendChild(btn);
+  bodyNode.appendChild(bar);
 }
 
 // Render the twin's proposal: a structured preview of what *would* be stored
@@ -2373,6 +2400,7 @@ $inputForm.addEventListener('submit', async (e) => {
           twinBody.innerHTML = renderCitations(accumulated, metaCitations, true);
           state.history.push({ role: 'user', content: text });
           state.history.push({ role: 'assistant', content: accumulated });
+          addAnswerShare(twinBody, accumulated, text);
         } else {
           // No tokens arrived (e.g. an empty chat response): clear the loading
           // indicator so it does not spin forever (sub-phase 7C edge case).
@@ -2402,6 +2430,7 @@ $inputForm.addEventListener('submit', async (e) => {
         if (accumulated) {
           state.history.push({ role: 'user', content: text });
           state.history.push({ role: 'assistant', content: accumulated });
+          addAnswerShare(twinBody, accumulated, text);
         }
       }
     } else if (err.status === 429 && err.body?.signup_required) {
@@ -2701,7 +2730,12 @@ $uploadFile.addEventListener('change', async () => {
 function renderDocumentProposal(proposal) {
   const card = el('div', 'proposal');
 
-  const introText = `Looks like a ${proposal.estimated_blocks > 1 ? 'document with several distinct pieces inside' : 'document'}. Store it?`;
+  // Idempotency: the server recognised this exact document is already stored.
+  const isDup = !!proposal.already_exists;
+  const pieceCount = proposal.chunk_count || proposal.estimated_blocks || 1;
+  const introText = isDup
+    ? 'This document is already in your twin. Replace it with this upload?'
+    : `Looks like a ${pieceCount > 1 ? 'document with several distinct pieces inside' : 'document'}. Store it?`;
   card.appendChild(el('div', 'proposal-intro', introText));
 
   const grid = el('div', 'proposal-fields');
@@ -2748,11 +2782,12 @@ function renderDocumentProposal(proposal) {
   summary.style.fontStyle = 'italic';
   grid.appendChild(summary);
 
-  // Fix 3: "1 complete document · N retrievable pieces" — clarifies both the
-  // whole document and its searchable parts are stored.
+  // "1 complete document · N retrievable pieces" — the whole document is the
+  // durable parent; N is now the REAL chunk count from the actual chunk plan
+  // (proposal.chunk_count), not an LLM estimate.
   grid.appendChild(el('div', 'proposal-label', 'Records'));
   grid.appendChild(el('div', 'proposal-value',
-    `1 complete document · ${proposal.estimated_blocks || 1} retrievable ${proposal.estimated_blocks === 1 ? 'piece' : 'pieces'}`));
+    `1 complete document · ${pieceCount} retrievable ${pieceCount === 1 ? 'piece' : 'pieces'}`));
 
   // Fix 2: show connections to existing twin items (if any were found).
   if (proposal.connections && proposal.connections.length > 0) {
@@ -2763,8 +2798,8 @@ function renderDocumentProposal(proposal) {
   card.appendChild(grid);
 
   const actions = el('div', 'proposal-actions');
-  const storeBtn = el('button', 'proposal-btn proposal-btn-primary', 'Store as proposed');
-  storeBtn.onclick = () => confirmStoreDocument(proposal, selectedDocType, card);
+  const storeBtn = el('button', 'proposal-btn proposal-btn-primary', isDup ? 'Replace it' : 'Store as proposed');
+  storeBtn.onclick = () => confirmStoreDocument(proposal, selectedDocType, card, isDup);
   actions.appendChild(storeBtn);
 
   const cancelBtn = el('button', 'proposal-btn proposal-btn-secondary', 'Not now');
@@ -2778,7 +2813,7 @@ function renderDocumentProposal(proposal) {
   appendMsg(twinRow(card));
 }
 
-async function confirmStoreDocument(proposal, selectedType, cardEl) {
+async function confirmStoreDocument(proposal, selectedType, cardEl, replace = false) {
   cardEl.querySelectorAll('button').forEach(b => b.disabled = true);
   const loading = renderLoading();
   try {
@@ -2790,12 +2825,28 @@ async function confirmStoreDocument(proposal, selectedType, cardEl) {
         title:      proposal.title,
         tags:       proposal.tags,
         provenance: proposal.provenance,
+        summary:    proposal.summary,
         type:       selectedType,
+        replace,
       }),
     });
     loading.remove();
+    // Safety net: server recognised a duplicate that the preview missed. Never
+    // duplicate silently — re-render the card so the user can choose to replace.
+    if (result && result.duplicate) {
+      renderDocumentProposal({
+        ...proposal,
+        already_exists: {
+          source_id:   result.existing_source_id,
+          reference:   result.reference,
+          ingested_at: result.existing_ingested_at,
+        },
+      });
+      return;
+    }
     // Render the in-voice ack the server generated. No "as 10 chunks".
-    renderTwin(result.ack || `In. Stored "${proposal.title}". You'll find it in your library.`);
+    const verb = result.replaced ? 'Replaced' : 'Stored';
+    renderTwin(result.ack || `In. ${verb} "${proposal.title}". You'll find it in your library.`);
   } catch (err) {
     loading.remove();
     if (err.status === 429 && err.body?.signup_required) {
@@ -2832,16 +2883,10 @@ function switchTab(tab) {
   if (tab === 'voice') loadVoiceStudio();
 }
 
-// Tab click handlers. Brain is no longer an in-SPA surface: it opens the
-// full-page Library at /twin/library (full width, no chat furniture). Chat and
-// Voice stay in this SPA. The Library page carries the same Chat/Brain/Voice nav
-// plus the Wiki/Library sub-toggle, so the user can always toggle back.
-document.querySelectorAll('.main-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (btn.dataset.tab === 'wiki') { window.location.href = '/twin/library'; return; }
-    switchTab(btn.dataset.tab);
-  });
-});
+// The CHAT · BRAIN · VOICE surface toggle is gone. Navigation now lives in the
+// persistent header action bar (real links: Store & Search → /twin/chat,
+// Talk → /voice, Explore → /twin/library). Chat is the only in-shell surface,
+// so it is simply the default; switchTab() remains for internal use.
 
 // ── Drawing From: source scoping (machinery, dormant until phase two) ────────
 // The scoping UI lives in the + control and ships in phase two. Until then the
@@ -3028,16 +3073,20 @@ async function handleShareInvite(token) {
     const params     = new URLSearchParams(window.location.search);
     const isClaimed  = params.get('claimed')  === '1';
     const isSignedIn = params.get('signedin') === '1';
-    // Deep link from the full-page Library's Voice nav: /twin?surface=voice.
+    // Legacy deep link to the in-shell Voice tab now lives at its own /voice app.
     const wantVoice  = params.get('surface') === 'voice';
+    // Handoff from the home's Store & Search box: ?q=<text> runs a turn,
+    // ?add=doc opens the document picker.
+    const qParam     = params.get('q');
+    const addParam   = params.get('add');
 
-    if (isClaimed || isSignedIn) history.replaceState({}, '', '/twin');
-    if (wantVoice) { history.replaceState({}, '', '/twin'); switchTab('voice'); }
+    if (isClaimed || isSignedIn || qParam || addParam) history.replaceState({}, '', '/twin/chat');
+    if (wantVoice) { window.location.replace('/voice'); return; }
 
     // Share invitation deep link (P1.4): /twin?invite=<token>. Show the accept
     // overlay; the chat still loads underneath so this is non-blocking.
     const inviteToken = params.get('invite');
-    if (inviteToken) { history.replaceState({}, '', '/twin'); handleShareInvite(inviteToken); }
+    if (inviteToken) { history.replaceState({}, '', '/twin/chat'); handleShareInvite(inviteToken); }
 
     if (isSignedIn && !sessionStorage.getItem('signin_greeting_shown')) {
       sessionStorage.setItem('signin_greeting_shown', '1');
@@ -3051,12 +3100,29 @@ async function handleShareInvite(token) {
     // Reveal the Drawing From status line now that the session is ready.
     const $dfBar = document.getElementById('drawing-from-bar');
     if ($dfBar) $dfBar.hidden = false;
+
+    // Run the Store & Search handoff from the home, if present.
+    if (qParam) {
+      $inputText.value = qParam;
+      if (typeof autosizeTextarea === 'function') autosizeTextarea();
+      requestAnimationFrame(() => $inputForm.requestSubmit());
+    } else if (addParam === 'doc') {
+      const f = document.getElementById('upload-file');
+      if (f) setTimeout(() => f.click(), 150);
+    }
   } catch (err) {
     renderOpeningMessage(0, false);
     renderSystem('Could not start a session. ' + escapeHtml(err.message) + '. Refresh and we go again.');
   }
 })();
 </script>
+
+<style>
+.answer-share{margin-top:10px;}
+.answer-share-btn{background:none;border:none;padding:2px 0;font:600 11px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.04em;text-transform:uppercase;color:var(--muted,#8a8478);cursor:pointer;}
+.answer-share-btn:hover{color:#2d7d4d;}
+</style>
+<script src="/share-modal.js"></script>
 
 </body>
 </html>

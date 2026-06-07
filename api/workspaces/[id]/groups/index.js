@@ -17,6 +17,6 @@ export default async function handler(req, res) {
   const { id } = req.query;
   try {
     if (req.method === 'GET') return res.status(200).json(await listGroups({ ctx, workspaceId: id }));
-    return res.status(201).json(await createGroup({ ctx, workspaceId: id, name: (req.body || {}).name }));
+    return res.status(201).json(await createGroup({ ctx, workspaceId: id, name: (req.body || {}).name, openness: (req.body || {}).openness }));
   } catch (err) { return fail(res, err); }
 }

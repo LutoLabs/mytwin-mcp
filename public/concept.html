@@ -298,12 +298,14 @@ header.site-header {
         <span class="logo-by">by Luto</span>
       </span>
     </a>
-    <nav class="site-nav">
-      <a href="/twin" class="nav-link">Chat</a>
-      <a href="/twin/library" class="nav-link active">Library</a>
+    <nav class="site-nav" aria-label="Main actions">
+      <a href="/twin/chat" class="nav-link">Store &amp; Search</a>
+      <a href="/voice" class="nav-link">Voice</a>
+      <a href="/twin/library" class="nav-link active">Brain</a>
     </nav>
     <div class="header-right">
-      <a href="/create" class="signin-link">Sign in</a>
+      <a href="/create" class="signin-link" id="cp-signin">Sign in</a>
+      <a href="/twin/profile" class="signin-link" id="cp-account" hidden>Your twin →</a>
     </div>
   </div>
 </header>
@@ -327,6 +329,7 @@ header.site-header {
   <h1 class="concept-title" id="concept-title"></h1>
   <p class="concept-summary" id="concept-summary"></p>
   <div class="concept-meta-row" id="concept-meta-row"></div>
+  <div class="concept-share-row" id="concept-share-row"></div>
 
   <div class="concept-content" id="concept-content"></div>
 
@@ -338,11 +341,33 @@ header.site-header {
   <a href="/twin/library" class="back-link">← Back to library</a>
 </main>
 
+<style>
+.concept-share-row{margin:2px 0 20px;}
+.concept-share-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border:1.5px solid var(--line,#e7e2d9);background:transparent;border-radius:8px;font:600 11px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.05em;text-transform:uppercase;color:var(--ink,#0f0e0d);cursor:pointer;}
+.concept-share-btn:hover{border-color:#2d7d4d;color:#2d7d4d;}
+</style>
+<script src="/share-modal.js"></script>
 <script>
 'use strict';
 
 const STORAGE_KEY = 'mt_anon_token';
 let token = null;
+
+// Identity is session-first: resolve the signed-in session before deciding the
+// header, and only show "Sign in" when there is genuinely no session, so a
+// signed-in owner never sees it (audit A2).
+(function resolveIdentity() {
+  fetch('/api/auth/session', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.is_authenticated) {
+        var s = document.getElementById('cp-signin'), a = document.getElementById('cp-account');
+        if (s) s.hidden = true;
+        if (a) a.hidden = false;
+      }
+    })
+    .catch(function () {});
+})();
 
 function eid(id) { return document.getElementById(id); }
 
@@ -381,7 +406,7 @@ function snippetText(content, max) {
     .replace(/`([^`]*)`/g, '$1')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\s{2,}/g, ' ').replace(/\n+/g, ' ').trim()
-    .slice(0, max) || '—';
+    .slice(0, max) || '';
 }
 
 const TYPE_LABEL = {
@@ -451,6 +476,19 @@ function renderConcept(concept, sourceItems) {
     srcCount + ' source item' + (srcCount !== 1 ? 's' : ''),
     'Version ' + concept.version,
   ].join('  ·  ');
+
+  // Share affordance (public link). The concept API is tenant-scoped, so any
+  // viewer here owns this page. The modal handles the "not fully sharable"
+  // case (409) and the sign-in case (401).
+  const shareRow = eid('concept-share-row');
+  if (shareRow && window.LutoShare) {
+    shareRow.innerHTML = '';
+    const btn = document.createElement('button');
+    btn.className = 'concept-share-btn';
+    btn.textContent = 'Share';
+    btn.onclick = () => window.LutoShare.open({ resourceType: 'concept', resourceId: concept.id, title: concept.title });
+    shareRow.appendChild(btn);
+  }
 
   // Body content
   eid('concept-content').innerHTML = renderMarkdown(concept.content || '');

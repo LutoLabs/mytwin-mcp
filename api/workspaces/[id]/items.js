@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   if (!ctx) return res.status(401).json({ error: 'Sign in first.' });
   if (ctx.isAnonymous) return res.status(403).json({ error: 'Sign in to use workspaces.' });
   try {
-    return res.status(200).json(await listWorkspaceItems({ ctx, workspaceId: req.query.id }));
+    return res.status(200).json(await listWorkspaceItems({ ctx, workspaceId: req.query.id, groupId: req.query.group_id || null }));
   } catch (err) {
     const status = typeof err?.status === 'number' ? err.status : (err?.userFacing ? 400 : 500);
     if (status >= 500) console.error('[workspaces/items] error:', err?.message);

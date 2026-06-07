@@ -8,11 +8,18 @@
     { "source": "/terms",          "destination": "/terms.html" },
     { "source": "/security",       "destination": "/security.html" },
     { "source": "/docs",           "destination": "/docs.html" },
-    { "source": "/twin",           "destination": "/twin.html" },
+    { "source": "/twin",           "destination": "/home.html" },
+    { "source": "/twin/chat",      "destination": "/twin.html" },
     { "source": "/try",            "destination": "/twin.html" },
     { "source": "/twin/profile",   "destination": "/profile.html" },
+    { "source": "/twin/home-next", "destination": "/home-next.html" },
+    { "source": "/twin/activation-next", "destination": "/activation-next.html" },
+    { "source": "/twin/activation-v3",   "destination": "/activation-v3.html" },
+    { "source": "/twin/activation",      "destination": "/activation.html" },
     { "source": "/twin/library",   "destination": "/library.html" },
     { "source": "/twin/library/concept/:id", "destination": "/concept.html" },
+    { "source": "/voice",          "destination": "/voice.html" },
+    { "source": "/p/:slug",        "destination": "/api/p/[slug]" },
     { "source": "/mcp",                                    "destination": "/api/mcp" },
     { "source": "/mcp/shared/:token",                      "destination": "/api/mcp/shared/[token]" },
     { "source": "/.well-known/oauth-protected-resource",   "destination": "/api/well-known/oauth-protected-resource" },
@@ -25,7 +32,9 @@
     { "source": "/mcp/:userId",    "destination": "/create",  "permanent": true },
     { "source": "/admin",          "destination": "/", "permanent": true },
     { "source": "/admin.html",     "destination": "/", "permanent": true },
-    { "source": "/twin/account",   "destination": "/twin/profile", "permanent": false }
+    { "source": "/twin/account",   "destination": "/twin/profile", "permanent": false },
+    { "source": "/account",        "destination": "/twin/profile", "permanent": false },
+    { "source": "/account.html",   "destination": "/twin/profile", "permanent": false }
   ],
   "functions": {
     "api/inngest.js":                       { "maxDuration": 300 },
@@ -34,5 +43,8 @@
     "api/twin/bulk-contribute.js":          { "maxDuration": 120 },
     "api/admin/test-cross-tenant.js":       { "maxDuration": 120 },
     "api/**/*.js":                          { "maxDuration": 60  }
-  }
+  },
+  "crons": [
+    { "path": "/api/cron/inngest-sync", "schedule": "0 6 * * *" }
+  ]
 }

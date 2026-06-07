@@ -71,4 +71,21 @@ for (const L of LABELS) {
 const gateCases = rows.filter(r => /SUPERSEDE|CONTRADICTION/.test(r.expected));
 const gateFail = gateCases.filter(r => !r.ok);
 console.log(`\nHigh-stakes gate (SUPERSEDE/CONTRADICTION): ${gateCases.length - gateFail.length}/${gateCases.length} correct`);
+
+// ── ELABORATION link-precision gate ──────────────────────────────────────────
+// Every ELABORATION becomes a hypergraph edge, and over-linking degrades the
+// graph UX, so ELABORATION writes stay disabled until link-precision clears a
+// high bar on the rebuilt eval. Precision here = of everything the classifier
+// CALLED ELABORATION, how much truly was (tp / (tp+fp)) — i.e. how few spurious
+// links it would draw. This is the number to clear before flipping
+// writeEnabled.ELABORATION true in lib/reconciliation/config.js.
+const ELAB_TARGET = 0.90;
+const elabTp = tp['ELABORATION'], elabFp = fp['ELABORATION'];
+const elabPrecision = (elabTp + elabFp) ? elabTp / (elabTp + elabFp) : null;
+const elabRecall    = (elabTp + fn['ELABORATION']) ? elabTp / (elabTp + fn['ELABORATION']) : null;
+console.log(`\nELABORATION link-precision gate (target ≥ ${ELAB_TARGET.toFixed(2)}):`);
+console.log(`  precision ${elabPrecision == null ? '— (no ELABORATION cases)' : elabPrecision.toFixed(2)}   recall ${elabRecall == null ? '—' : elabRecall.toFixed(2)}   (tp ${elabTp} fp ${elabFp} fn ${fn['ELABORATION']})`);
+const elabGatePass = elabPrecision != null && elabPrecision >= ELAB_TARGET;
+console.log(`  -> ELABORATION writes ${elabGatePass ? 'MAY be enabled (precision clears the bar)' : 'must stay DISABLED (precision below bar or unmeasured)'}`);
+
 process.exit(fail === 0 ? 0 : 1);

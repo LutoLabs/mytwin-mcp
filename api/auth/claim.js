@@ -50,7 +50,8 @@ export default async function handler(req, res) {
   const startedAt = Date.now();
 
   try {
-    const { email, tenant_id } = req.body || {};
+    const { email, tenant_id, referrer } = req.body || {};
+    const cleanReferrer = typeof referrer === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(referrer) ? referrer : null;
 
     if (email && isValidEmail(email) && tenant_id && typeof tenant_id === 'string') {
       const cleaned = email.toLowerCase().trim();
@@ -71,7 +72,7 @@ export default async function handler(req, res) {
             .eq('email', cleaned)
             .maybeSingle();
 
-          const token    = await createMagicToken(cleaned, null, tenant_id);
+          const token    = await createMagicToken(cleaned, null, tenant_id, cleanReferrer);
           const magicUrl = `${APP_URL}/api/auth/verify?token=${token}`;
 
           await resend.emails.send({

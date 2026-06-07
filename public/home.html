@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MyAITwin</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FBFAF7; --surface:#F3F1EC; --card:#FFFFFF;
+    --ink:#0F0E0D; --ink-2:#2C2C2A; --mut:#6B6760; --line:#E0DDD4;
+    --yellow:#FFE34A; --yellow-deep:#F5C500;
+    --amber-label:#854F0B;
+    --hero-bg:#0B0B12;
+    --shadow-2:2px 2px 0 var(--ink);
+    --shadow-3:3px 3px 0 var(--ink);
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:'Source Serif 4',Georgia,serif;
+    font-size:15px; line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  body.hg-immersed{overflow:hidden;}
+  body.hg-grabbing, body.hg-grabbing *{cursor:grabbing !important;}
+  a{color:inherit;text-decoration:none;}
+  button,input{font-family:inherit;color:inherit;}
+  button{cursor:pointer;background:none;border:none;}
+  [hidden]{display:none !important;}
+  .mono{font-family:'JetBrains Mono',ui-monospace,monospace;}
+  a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+
+  /* ── Header ─────────────────────────────────────────────────────────── */
+  header.site-header{
+    position:sticky; top:0; z-index:40;
+    border-bottom:1px solid var(--line);
+    background:rgba(251,250,247,0.9); backdrop-filter:blur(8px);
+  }
+  .header-inner{
+    max-width:1080px; margin:0 auto; padding:12px 18px;
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+  }
+  .logo{display:flex; align-items:center; gap:9px;}
+  .logo-mark{position:relative; width:22px; height:22px; flex-shrink:0;}
+  .logo-mark::before{content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:3px; background:var(--ink); opacity:.32;}
+  .logo-mark::after{content:''; position:absolute; top:0; left:0; width:20px; height:20px; border-radius:3px; background:var(--yellow); border:1.5px solid var(--ink);}
+  .logo-text{display:flex; flex-direction:column; gap:1px;}
+  .logo-name{font-size:1.05rem; font-weight:600; letter-spacing:-0.01em; line-height:1.1;}
+  .logo-by{font-family:'JetBrains Mono',monospace; font-size:7px; font-weight:600; text-transform:uppercase; letter-spacing:0.2em; color:var(--mut); line-height:1;}
+
+  /* anon header buttons */
+  .anon-btns{display:flex; align-items:center; gap:8px;}
+  .signin-link{font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--mut); padding:7px 10px; transition:color 150ms;}
+  .signin-link:hover{color:var(--ink);}
+  .save-twin-btn{font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; letter-spacing:0.04em; color:var(--ink); background:var(--yellow); border:1.5px solid var(--ink); border-radius:8px; padding:7px 12px; box-shadow:var(--shadow-2); transition:transform 120ms, box-shadow 120ms;}
+  .save-twin-btn:hover{transform:translate(-1px,-1px); box-shadow:3px 3px 0 var(--ink);}
+
+  /* avatar menu */
+  .account-indicator{position:relative;}
+  .account-trigger{display:flex; align-items:center; gap:7px; padding:5px 7px; border-radius:8px; transition:background 120ms;}
+  .account-trigger:hover{background:var(--surface);}
+  .acct-avatar{width:26px; height:26px; background:var(--ink); color:var(--paper); border-radius:7px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; flex-shrink:0; user-select:none;}
+  .acct-caret{color:var(--mut); flex-shrink:0;}
+  .account-dropdown{position:absolute; right:0; top:calc(100% + 6px); background:var(--paper); border:1.5px solid var(--ink); border-radius:10px; box-shadow:var(--shadow-3); min-width:200px; z-index:100; overflow:hidden;}
+  .acct-dropdown-email{padding:11px 14px 10px; font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:600; letter-spacing:0.04em; color:var(--mut); border-bottom:1px solid var(--line); word-break:break-all;}
+  .acct-dropdown-item{display:block; width:100%; padding:10px 14px; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink); border-top:1px solid var(--line); text-align:left; transition:background 100ms;}
+  .acct-dropdown-item:first-child{border-top:none;}
+  .acct-dropdown-item:hover{background:var(--surface);}
+
+  /* Space switcher — "where you are" (left of centre). */
+  .header-left{display:flex; align-items:center; gap:10px; min-width:0;}
+  .space-switcher{position:relative;}
+  .space-trigger{display:flex; align-items:center; gap:7px; padding:6px 10px; border:1.5px solid var(--ink); border-radius:8px; background:var(--card); box-shadow:var(--shadow-2); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; color:var(--ink); max-width:210px; transition:background 120ms;}
+  .space-trigger:hover{background:var(--surface);}
+  .sp-dot{width:9px; height:9px; border-radius:3px; flex-shrink:0; border:1.5px solid var(--ink); background:var(--yellow);}
+  .space-trigger .sp-name{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .space-trigger .sp-caret{color:var(--mut); flex-shrink:0;}
+  .space-menu{position:absolute; left:0; top:calc(100% + 6px); background:var(--paper); border:1.5px solid var(--ink); border-radius:10px; box-shadow:var(--shadow-3); min-width:252px; z-index:120; overflow:hidden; padding:5px;}
+  .space-group-label{font-family:'JetBrains Mono',monospace; font-size:8.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.1em; color:var(--mut); padding:8px 9px 4px;}
+  .space-item{display:flex; align-items:center; gap:9px; width:100%; padding:8px 9px; border-radius:7px; font-size:13px; color:var(--ink); text-align:left; cursor:pointer; background:none; border:none;}
+  .space-item:hover{background:var(--surface);}
+  .space-item.active{background:var(--surface);}
+  .space-item .sp-name{flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .space-item .sp-meta{font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--mut); flex-shrink:0;}
+  .space-item .sp-manage{font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--mut); text-decoration:underline; flex-shrink:0;}
+  .space-item .sp-manage:hover{color:var(--ink);}
+  .space-item.teamspace{padding-left:26px;}
+  .space-item.teamspace .sp-dot{width:6px; height:6px; border-radius:2px;}
+  .space-item.teamspace .sp-name{font-size:12.5px; color:var(--ink-2);}
+  .space-divider{height:1px; background:var(--line); margin:5px 4px;}
+  .space-action{display:flex; align-items:center; width:100%; padding:8px 9px; border-radius:7px; font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--mut); background:none; border:none; text-align:left; cursor:pointer;}
+  .space-action:hover{background:var(--surface); color:var(--ink);}
+  @media (max-width:520px){ .space-trigger{max-width:130px;} .space-trigger .sp-name{max-width:80px;} }
+
+  /* ── Page ───────────────────────────────────────────────────────────── */
+  main{max-width:1080px; margin:0 auto; padding:20px 18px 80px;}
+  .eyebrow{font-family:'JetBrains Mono',monospace; font-size:9px; text-transform:uppercase; letter-spacing:0.08em; color:var(--mut);}
+
+  /* Hero — a large square that dominates the top; widgets + feed sit below it. */
+  .hero{
+    position:relative; width:100%; aspect-ratio:1 / 1; max-height:86vh;
+    border:1.5px solid var(--ink); border-radius:14px; overflow:hidden;
+    background:radial-gradient(ellipse 100% 100% at 50% 45%, rgba(28,32,66,0.55) 0%, transparent 62%), var(--hero-bg);
+    margin:0 auto 26px;
+  }
+  .hero.immersive{position:fixed; inset:0; z-index:1000; height:auto; aspect-ratio:auto; max-height:none; border:none; border-radius:0; margin:0;}
+  .hero-label{position:absolute; top:11px; left:14px; z-index:3; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.1em; text-transform:uppercase; color:#8A887F; pointer-events:none;}
+  .hero-imm{position:absolute; top:9px; right:11px; z-index:3; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.04em; color:#9b99a8; padding:4px 8px; border-radius:6px; border:1px solid rgba(150,160,220,0.18); transition:color 120ms, border-color 120ms, background 120ms;}
+  .hero-imm:hover{color:#eef0ff; border-color:rgba(150,160,220,0.4); background:rgba(150,160,220,0.08);}
+  #hero-graph{position:absolute; inset:0;}
+  #hero-ghost{position:absolute; inset:0;}
+  .hero-status{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:18px; color:#7e7c93; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.04em;}
+
+  /* Widgets */
+  .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+  .widget{
+    border:1.5px solid var(--ink); border-radius:12px; background:var(--card);
+    box-shadow:var(--shadow-3); padding:16px 16px 14px;
+    display:flex; flex-direction:column; gap:11px; min-height:252px;
+  }
+  .widget-h{font-size:1.25rem; font-weight:600; letter-spacing:-0.01em;}
+  .widget-desc{font-family:'JetBrains Mono',monospace; font-size:9.5px; line-height:1.6; color:var(--mut); letter-spacing:0.01em;}
+
+  .ss-box{display:flex; align-items:center; gap:8px; border:1.5px solid var(--ink); border-radius:9px; background:var(--paper); padding:4px 4px 4px 11px;}
+  .ss-box input{flex:1; border:none; background:none; outline:none; font-style:italic; font-size:13.5px; color:var(--ink);}
+  .ss-box input::placeholder{color:var(--mut); font-style:italic;}
+  .ss-add{width:30px; height:30px; flex-shrink:0; border-radius:7px; background:var(--ink); color:var(--paper); font-size:18px; line-height:1; display:flex; align-items:center; justify-content:center;}
+  .ss-add:hover{background:var(--ink-2);}
+
+  .mic{width:58px; height:58px; margin:4px auto 0; border-radius:50%; background:var(--yellow); border:1.5px solid var(--ink); box-shadow:var(--shadow-2); display:flex; align-items:center; justify-content:center; transition:transform 120ms, box-shadow 120ms;}
+  .mic:hover{transform:translate(-1px,-1px); box-shadow:3px 3px 0 var(--ink);}
+  .mic svg{width:24px; height:24px;}
+  .mic-label{text-align:center; font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em;}
+
+  .chips{display:flex; flex-wrap:wrap; gap:6px;}
+  .chip{display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); border-radius:18px; padding:5px 11px; font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--ink-2); transition:border-color 120ms, background 120ms;}
+  .chip:hover{border-color:var(--ink); background:var(--surface);}
+  .chip b{color:var(--mut); font-weight:600; font-size:9px;}
+
+  .sub{border-top:1px dashed var(--line); padding-top:10px; margin-top:auto;}
+  .subh{font-family:'JetBrains Mono',monospace; font-size:8.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.07em; color:var(--amber-label); margin-bottom:7px;}
+  .item{display:block; font-size:13px; color:var(--ink-2); margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .item:last-child{margin-bottom:0;}
+  .item small{font-family:'JetBrains Mono',monospace; font-size:8.5px; letter-spacing:0.04em; color:var(--mut);}
+  .item-empty{font-style:italic; color:var(--mut); font-size:12.5px;}
+
+  /* Feed */
+  .feed{margin-top:22px; border:1.5px solid var(--ink); border-radius:12px; background:var(--card); box-shadow:3px 3px 0 var(--yellow); overflow:hidden;}
+  .feed-h{padding:11px 16px; border-bottom:1px solid var(--line); font-family:'JetBrains Mono',monospace; font-size:9.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.07em; color:var(--amber-label);}
+  .feed-row{display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid #F0EDE5;}
+  .feed-row:last-child{border-bottom:none;}
+  .tag{font-family:'JetBrains Mono',monospace; font-size:8px; font-weight:600; letter-spacing:0.05em; color:#fff; background:var(--mut); border-radius:5px; padding:3px 7px; white-space:nowrap;}
+  .tag.formed{background:#854F0B;} .tag.skill{background:#0C447C;} .tag.work{background:#0F0E0D;} .tag.connection{background:#0B6E5E;}
+  .feed-title{flex:1; font-size:13.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .feed-acts{display:flex; gap:7px; flex-shrink:0;}
+  .btn{font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:600; letter-spacing:0.03em; border:1.3px solid var(--ink); border-radius:7px; background:#fff; padding:6px 11px; transition:transform 110ms, box-shadow 110ms, background 110ms;}
+  .btn:hover{transform:translate(-1px,-1px); box-shadow:var(--shadow-2);}
+  .btn.y{background:var(--yellow);}
+  .btn:disabled{opacity:0.5; pointer-events:none;}
+
+  /* Modals (claim / sign-in) */
+  .overlay{position:fixed; inset:0; z-index:1200; background:rgba(15,14,13,0.5); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:24px;}
+  .modal-card{position:relative; width:100%; max-width:420px; background:var(--paper); border:1.5px solid var(--ink); border-radius:14px; box-shadow:5px 5px 0 var(--ink); padding:30px 28px 26px;}
+  .modal-close{position:absolute; top:12px; right:14px; font-size:20px; color:var(--mut); line-height:1;}
+  .modal-eyebrow{font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:0.14em; color:var(--mut);}
+  .modal-h{font-size:1.5rem; font-weight:600; letter-spacing:-0.01em; margin-top:6px;}
+  .modal-sub{font-size:13.5px; color:var(--mut); margin-top:8px; line-height:1.5;}
+  .modal-form{display:flex; gap:8px; margin-top:18px;}
+  .modal-input{flex:1; border:1.5px solid var(--ink); border-radius:8px; background:#fff; padding:10px 12px; font-size:14px;}
+  .modal-btn{font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; letter-spacing:0.04em; background:var(--yellow); border:1.5px solid var(--ink); border-radius:8px; padding:10px 14px; box-shadow:var(--shadow-2);}
+  .modal-btn:hover{transform:translate(-1px,-1px); box-shadow:3px 3px 0 var(--ink);}
+
+  .page-fade{opacity:0; transition:opacity 220ms ease;}
+  .page-fade.in{opacity:1;}
+
+  @media (max-width:860px){
+    .grid3{grid-template-columns:1fr;}
+    .widget{min-height:0;}
+  }
+  @media (max-width:520px){
+    .header-inner, main{padding-left:14px; padding-right:14px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="header-left">
+      <a href="/twin" class="logo" aria-label="MyAITwin home">
+        <span class="logo-mark"></span>
+        <span class="logo-text">
+          <span class="logo-name">MyAITwin</span>
+          <span class="logo-by">BY LUTO</span>
+        </span>
+      </a>
+      <!-- Space switcher: where you are. Re-scopes the whole home. -->
+      <div class="space-switcher" id="space-switcher" hidden>
+        <button type="button" class="space-trigger" id="space-trigger" aria-haspopup="true" aria-expanded="false">
+          <span class="sp-dot" id="sp-cur-dot"></span>
+          <span class="sp-name" id="sp-cur-name">Personal</span>
+          <svg class="sp-caret" width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="space-menu" id="space-menu" hidden role="menu"></div>
+      </div>
+    </div>
+
+    <!-- Anonymous -->
+    <div id="anon-btns" class="anon-btns" hidden>
+      <button type="button" class="signin-link" id="signin-link-btn">Sign in</button>
+      <button type="button" class="save-twin-btn" id="save-twin-btn">Save your twin →</button>
+    </div>
+
+    <!-- Authenticated -->
+    <div id="account-indicator" class="account-indicator" hidden>
+      <button type="button" class="account-trigger" id="account-trigger" aria-haspopup="true" aria-expanded="false">
+        <span class="acct-avatar" id="acct-avatar" aria-hidden="true"></span>
+        <svg class="acct-caret" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+          <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <div id="account-dropdown" class="account-dropdown" hidden role="menu">
+        <div class="acct-dropdown-email" id="acct-dropdown-email"></div>
+        <a href="/twin/profile" class="acct-dropdown-item" role="menuitem">Profile</a>
+        <a href="/twin/profile#settings" class="acct-dropdown-item" role="menuitem">Settings</a>
+        <button type="button" id="sign-out-btn" class="acct-dropdown-item" role="menuitem">Sign out</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="page" class="page-fade">
+
+  <!-- Hero -->
+  <section class="hero" id="hero">
+    <span class="hero-label" id="hero-label">Your knowledge, connected</span>
+    <button type="button" class="hero-imm" id="hero-imm">⤢ immersion</button>
+    <div id="hero-graph"></div>
+    <div id="hero-ghost" hidden></div>
+    <div class="hero-status" id="hero-status">Loading your knowledge…</div>
+  </section>
+
+  <!-- Widgets -->
+  <div class="grid3">
+
+    <!-- A. Store & Search -->
+    <section class="widget">
+      <div class="widget-h">Store &amp; Search</div>
+      <form class="ss-box" id="ss-form">
+        <input id="ss-input" placeholder="Type to store, or ask anything…" autocomplete="off">
+        <button type="button" class="ss-add" id="ss-add" title="Add a document" aria-label="Add a document">+</button>
+      </form>
+      <div class="widget-desc">One box. A thought or a doc gets stored. A question gets answered from everything you know.</div>
+      <div class="sub">
+        <div class="subh">Recent</div>
+        <div id="ss-recent"></div>
+      </div>
+    </section>
+
+    <!-- B. Use Voice -->
+    <section class="widget">
+      <div class="widget-h">Voice</div>
+      <a class="mic" href="/voice" id="talk-mic" aria-label="Open the Voice app">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0F0E0D" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+      </a>
+      <div class="mic-label">Open Voice</div>
+      <div class="widget-desc" style="text-align:center;">Record in the full Voice app, long or short. Live transcript. Your twin keeps what matters.</div>
+      <div class="sub">
+        <div class="subh" id="talk-subh">Recent voice notes</div>
+        <div id="talk-recent"></div>
+      </div>
+    </section>
+
+    <!-- C. Explore your Brain -->
+    <section class="widget">
+      <div class="widget-h">Brain</div>
+      <div class="widget-desc">Everything stored and everything your twin compiled. Knowledge, skills, wiki, templates. Wander it.</div>
+      <div class="chips" id="explore-chips"></div>
+      <div class="sub">
+        <div class="subh" id="explore-subh">Newest page</div>
+        <div id="explore-newest"></div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Activity feed -->
+  <section class="feed" id="feed" hidden>
+    <div class="feed-h">While you were away · Needs you</div>
+    <div id="feed-rows"></div>
+  </section>
+
+</main>
+
+<!-- Claim modal — "Save your twin" (anonymous only) -->
+<div id="claim-modal" class="overlay" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="claim-title">
+    <button type="button" class="modal-close" id="claim-close" aria-label="Close">×</button>
+    <div id="claim-idle">
+      <p class="modal-eyebrow">Save your twin</p>
+      <h2 id="claim-title" class="modal-h">Keep what you've built.</h2>
+      <p class="modal-sub">Enter your email. We'll send a link. Your captures come with you.</p>
+      <form id="claim-form" class="modal-form" novalidate>
+        <input type="email" id="claim-email" class="modal-input" placeholder="you@example.com" autocomplete="email">
+        <button type="submit" class="modal-btn">Send link →</button>
+      </form>
+    </div>
+    <div id="claim-sent" hidden>
+      <p class="modal-eyebrow">Check your email</p>
+      <h2 class="modal-h">Link on its way.</h2>
+      <p class="modal-sub">Click it and your twin is yours forever. Link expires in 15 minutes.</p>
+    </div>
+    <div id="claim-error" hidden>
+      <p class="modal-eyebrow">Something went wrong</p>
+      <h2 class="modal-h">Couldn't send that.</h2>
+      <p class="modal-sub">Try again in a moment.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Sign-in modal -->
+<div id="signin-modal" class="overlay" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="signin-title">
+    <button type="button" class="modal-close" id="signin-close" aria-label="Close">×</button>
+    <div id="signin-idle">
+      <p class="modal-eyebrow">Sign in</p>
+      <h2 id="signin-title" class="modal-h">Welcome back.</h2>
+      <p class="modal-sub">No password. A link expires in 15 minutes.</p>
+      <form id="signin-form" class="modal-form" novalidate>
+        <input type="email" id="signin-email" class="modal-input" placeholder="your@email.com" autocomplete="email">
+        <button type="submit" class="modal-btn">Send me a link →</button>
+      </form>
+    </div>
+    <div id="signin-sent" hidden>
+      <p class="modal-eyebrow">Check your inbox</p>
+      <h2 class="modal-h">Link on its way.</h2>
+      <p class="modal-sub">Click it to sign in. Link expires in 15 minutes.</p>
+    </div>
+    <div id="signin-error" hidden>
+      <p class="modal-eyebrow">Something went wrong</p>
+      <h2 class="modal-h">Couldn't send that.</h2>
+      <p class="modal-sub">Try again in a moment.</p>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="/hypergraph-hero.js"></script>
+<script>
+'use strict';
+(function () {
+  var STORAGE_KEY = 'mt_anon_token';
+  var COLD_START = 5;
+  var SEEN_KEY = 'mt_home_lastseen';
+  var ASKS_KEY = 'mt_recent_asks';
+  var SEVEN_DAYS = 7 * 864e5;
+
+  var state = { anonToken: null, isAuth: false, email: null, userId: null, heroHandle: null, ghostHandle: null,
+                currentSpace: { kind: 'personal', name: 'Personal' }, workspaces: [], teamspacesByWs: {}, hasShares: false, personalNotes: null };
+
+  // Local test seam — only honoured on localhost, lets the rich state be
+  // verified without a live session. Inert in production. Accepts window.__HOME__
+  // or a JSON fixture in localStorage['__HOME_SEAM__'] (the latter survives reload).
+  var IS_LOCAL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+  function localSeam() { try { var s = localStorage.getItem('__HOME_SEAM__'); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+  var SEAM = IS_LOCAL ? (window.__HOME__ || localSeam()) : null;
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
+  function num(x) { return (typeof x === 'number' && isFinite(x)) ? x : 0; }
+
+  function fetchJSON(path) {
+    var headers = { 'Accept': 'application/json' };
+    if (state.anonToken) headers['X-Anon-Token'] = state.anonToken;
+    return fetch(path, { credentials: 'same-origin', headers: headers })
+      .then(function (r) { if (!r.ok) throw new Error(path + ' ' + r.status); return r.json(); });
+  }
+  function postJSON(path, body) {
+    var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    if (state.anonToken) headers['X-Anon-Token'] = state.anonToken;
+    return fetch(path, { method: 'POST', credentials: 'same-origin', headers: headers, body: JSON.stringify(body || {}) })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) { var e = new Error(d.error || ('HTTP ' + r.status)); e.status = r.status; e.body = d; throw e; } return d; }); });
+  }
+  function safe(p) { return p.catch(function () { return null; }); }
+
+  function timeAgo(iso) {
+    if (!iso) return '';
+    var ms = (typeof iso === 'number') ? iso : Date.parse(iso);
+    if (!ms) return '';
+    var s = Math.floor((Date.now() - ms) / 1000);
+    if (s < 90) return 'NOW';
+    if (s < 3600) return Math.floor(s / 60) + 'M';
+    if (s < 86400) return Math.floor(s / 3600) + 'H';
+    if (s < 6 * 86400) return Math.floor(s / 86400) + 'D';
+    return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toUpperCase();
+  }
+  function msOf(iso) { return (typeof iso === 'number') ? iso : (Date.parse(iso) || 0); }
+
+  // ── session ─────────────────────────────────────────────────────────────
+  function ensureSession() {
+    state.anonToken = localStorage.getItem(STORAGE_KEY);
+    if (state.anonToken || state.isAuth) return Promise.resolve();
+    return fetch('/api/anon/init', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.anonToken) { state.anonToken = d.anonToken; localStorage.setItem(STORAGE_KEY, d.anonToken); } })
+      .catch(function () {});
+  }
+  function validateSession() {
+    if (SEAM && SEAM.auth) { state.isAuth = !!SEAM.auth.is_authenticated; state.email = SEAM.auth.email; state.userId = SEAM.auth.user_id; return Promise.resolve(); }
+    return fetch('/api/auth/session', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.is_authenticated && d.email) {
+          state.isAuth = true; state.email = d.email; state.userId = d.user_id;
+          localStorage.setItem('mt_is_authenticated', 'true');
+          localStorage.setItem('mt_user_email', d.email);
+        } else {
+          state.isAuth = false;
+          localStorage.removeItem('mt_is_authenticated');
+          localStorage.removeItem('mt_user_email');
+        }
+      })
+      .catch(function () {});
+  }
+  function getAnonTenantId() {
+    if (!state.anonToken) return null;
+    try {
+      var b64 = state.anonToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      return (JSON.parse(atob(b64)).tenantId) || null;
+    } catch (e) { return null; }
+  }
+
+  function updateHeader() {
+    if (state.isAuth) {
+      $('anon-btns').hidden = true;
+      $('account-indicator').hidden = false;
+      var initial = (state.email || '·').trim().charAt(0).toUpperCase() || '·';
+      $('acct-avatar').textContent = initial;
+      $('acct-dropdown-email').textContent = state.email || '';
+    } else {
+      $('account-indicator').hidden = true;
+      $('anon-btns').hidden = false;
+    }
+  }
+
+  // ── avatar dropdown ────────────────────────────────────────────────────
+  var trigger = $('account-trigger'), dropdown = $('account-dropdown');
+  trigger.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var open = dropdown.hidden === false;
+    dropdown.hidden = open; trigger.setAttribute('aria-expanded', String(!open));
+  });
+  document.addEventListener('click', function () { if (!dropdown.hidden) { dropdown.hidden = true; trigger.setAttribute('aria-expanded', 'false'); } });
+  $('sign-out-btn').addEventListener('click', function () {
+    localStorage.removeItem('mt_is_authenticated'); localStorage.removeItem('mt_user_email'); localStorage.removeItem(STORAGE_KEY);
+    fetch('/api/auth/signout', { method: 'POST' }).finally(function () { location.href = '/twin'; });
+  });
+
+  // ── hero: graph / ghost / message (re-mountable per space) + immersion ──
+  function clearHero() {
+    if (state.heroHandle && state.heroHandle.dispose) { state.heroHandle.dispose(); state.heroHandle = null; }
+    if (state.ghostHandle && state.ghostHandle.dispose) { state.ghostHandle.dispose(); state.ghostHandle = null; }
+    $('hero-graph').hidden = true; $('hero-ghost').hidden = true; $('hero-status').hidden = true;
+  }
+  function showHeroGraph(graph) {
+    clearHero();
+    if (!graph || !graph.nodes || !graph.nodes.length || !window.HypergraphHero || !window.THREE) { showHeroGhost(); return; }
+    $('hero-graph').hidden = false;
+    try {
+      state.heroHandle = HypergraphHero.mount($('hero-graph'), graph, {
+        onNodeClick: function (node) { location.href = '/twin/library?id=' + encodeURIComponent(node.id); }
+      });
+    } catch (e) { showHeroGhost(); }
+  }
+  function showHeroGhost(labels) {
+    clearHero();
+    $('hero-ghost').hidden = false;
+    if (window.HypergraphHero) state.ghostHandle = HypergraphHero.ghost($('hero-ghost'), labels ? { labels: labels } : undefined);
+  }
+  function showHeroMessage(text) {
+    clearHero();
+    $('hero-status').hidden = false; $('hero-status').textContent = text;
+  }
+  function toggleImmersion() {
+    var hero = $('hero'), on = hero.classList.toggle('immersive');
+    document.body.classList.toggle('hg-immersed', on);
+    $('hero-imm').textContent = on ? '✕ close' : '⤢ immersion';
+    // Resize synchronously (reading the new size forces the reflow) so it is
+    // correct even if rAF is throttled; a deferred pass covers any transition.
+    if (state.heroHandle && state.heroHandle.resize) {
+      state.heroHandle.resize();
+      requestAnimationFrame(function () { state.heroHandle.resize(); });
+    }
+  }
+  $('hero-imm').addEventListener('click', toggleImmersion);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && $('hero').classList.contains('immersive')) toggleImmersion();
+  });
+
+  // ── widget A: Store & Search ───────────────────────────────────────────
+  function recordAsk(q) {
+    try {
+      var a = JSON.parse(localStorage.getItem(ASKS_KEY) || '[]');
+      a.unshift({ q: String(q).slice(0, 90), at: Date.now() });
+      localStorage.setItem(ASKS_KEY, JSON.stringify(a.slice(0, 6)));
+    } catch (e) {}
+  }
+  function getAsks() { try { return JSON.parse(localStorage.getItem(ASKS_KEY) || '[]'); } catch (e) { return []; } }
+
+  $('ss-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var q = $('ss-input').value.trim();
+    if (!q) return;
+    recordAsk(q);
+    location.href = '/twin/chat?q=' + encodeURIComponent(q);
+  });
+  $('ss-add').addEventListener('click', function () { location.href = '/twin/chat?add=doc'; });
+
+  function renderStoreRecent(recent, cold) {
+    var box = $('ss-recent');
+    var captures = ((recent && recent.items) || []).map(function (it) {
+      return { title: it.title || (it.content || '').slice(0, 60) || 'Untitled', kind: 'STORED', at: msOf(it.created_at) };
+    });
+    var asks = getAsks().map(function (a) { return { title: a.q, kind: 'ASKED', at: a.at }; });
+    var all = captures.concat(asks).filter(function (x) { return x.title; }).sort(function (a, b) { return b.at - a.at; }).slice(0, 4);
+    if (!all.length) {
+      box.innerHTML = '<div class="item item-empty">' + (cold ? 'Store your first thought.' : 'Nothing yet. Store or ask above.') + '</div>';
+      return;
+    }
+    box.innerHTML = all.map(function (x) {
+      return '<span class="item">' + esc(x.title) + ' <small>· ' + x.kind + ' · ' + timeAgo(x.at) + '</small></span>';
+    }).join('');
+  }
+
+  // ── widget B: Talk ─────────────────────────────────────────────────────
+  function renderVoiceRecent(notes, cold) {
+    var box = $('talk-recent'), list = (notes && notes.notes) || [];
+    $('talk-subh').textContent = 'Recent voice notes' + (list.length ? ' · ' + list.length : '');
+    if (!list.length) {
+      box.innerHTML = '<div class="item item-empty">' + (cold ? 'Talk for 20 seconds.' : 'No voice notes yet.') + '</div>';
+      return;
+    }
+    box.innerHTML = list.slice(0, 3).map(function (nt) {
+      return '<a class="item" href="/voice">' + esc(nt.title || 'Voice note') + ' <small>· ' + timeAgo(nt.created_at) + '</small></a>';
+    }).join('');
+  }
+
+  // ── widget C: Explore ──────────────────────────────────────────────────
+  function renderExplore(stats, concepts, notes, cold) {
+    var byType = (stats && stats.itemsByType) || {};
+    var wiki = concepts ? num(concepts.total) : 0;
+    var library = stats ? num(stats.totalItems) : 0;
+    var skills = num(byType.skill);
+    var templates = num(byType.template);
+    var voice = ((notes && notes.notes) || []).length;
+    var chips = [
+      { label: 'Wiki', n: wiki, href: '/twin/library?view=wiki' },
+      { label: 'Library', n: library, href: '/twin/library' },
+      { label: 'Skills', n: skills, href: '/twin/library?type=skill' },
+      { label: 'Templates', n: templates, href: '/twin/library?type=template' },
+      { label: 'Voice notes', n: voice, href: '/voice' },
+      { label: 'By type', n: null, href: '/twin/library' }
+    ];
+    $('explore-chips').innerHTML = chips.map(function (c) {
+      return '<a class="chip" href="' + c.href + '">' + esc(c.label) + (c.n != null ? ' <b>' + c.n + '</b>' : '') + '</a>';
+    }).join('');
+
+    // Newest compiled page.
+    var pages = [].concat((concepts && concepts.knowledge) || [], (concepts && concepts.skills) || []);
+    pages.sort(function (a, b) { return msOf(b.updated_at) - msOf(a.updated_at); });
+    var box = $('explore-newest');
+    if (!pages.length) {
+      box.innerHTML = '<div class="item item-empty">' + (cold ? 'Nothing to explore yet.' : 'No pages compiled yet.') + '</div>';
+      return;
+    }
+    var p = pages[0], srcN = (p.source_ids || []).length;
+    box.innerHTML = '<a class="item" href="/twin/library/concept/' + encodeURIComponent(p.id) + '">' +
+      esc(p.title || 'Untitled page') + ' <small>· ' + srcN + ' SOURCE' + (srcN === 1 ? '' : 'S') + '</small></a>';
+  }
+
+  // ── activity feed ──────────────────────────────────────────────────────
+  function renderFeed(panel, serendipity) {
+    var rows = [];
+    // FORMED — concept pages compiled / updated.
+    ((panel && panel.concepts) || []).slice(0, 3).forEach(function (c) {
+      rows.push({ tag: 'FORMED', cls: 'formed', text: 'Concept page compiled: ' + (c.title || 'Untitled'),
+        acts: [{ label: 'View', href: '/twin/library/concept/' + encodeURIComponent(c.id) }] });
+    });
+    // SKILL — proposed skills (accept / dismiss).
+    ((panel && panel.proposals) || []).slice(0, 3).forEach(function (p) {
+      rows.push({ tag: 'SKILL', cls: 'skill', text: 'Skill proposed: ' + (p.title || 'a new skill'),
+        acts: [{ label: 'Accept', y: true, skill: p.id, action: 'accept' }, { label: 'Dismiss', skill: p.id, action: 'dismiss' }] });
+    });
+    // CONNECTION — a new cross-cluster link.
+    if (serendipity && serendipity.from && serendipity.to) {
+      rows.push({ tag: 'CONNECTION', cls: 'connection',
+        text: 'Linked “' + (serendipity.from.title || 'an idea') + '” to “' + (serendipity.to.title || 'another') + '”',
+        acts: [{ label: 'View', href: '/twin/library?id=' + encodeURIComponent(serendipity.from.id) }] });
+    }
+    // WORK — forward-looking; nothing produced yet, so no rows.
+
+    if (!rows.length) { $('feed').hidden = true; return; }
+
+    $('feed-rows').innerHTML = rows.map(function (r, i) {
+      var acts = r.acts.map(function (a) {
+        if (a.href) return '<a class="btn' + (a.y ? ' y' : '') + '" href="' + a.href + '">' + a.label + '</a>';
+        return '<button type="button" class="btn' + (a.y ? ' y' : '') + '" data-skill="' + esc(a.skill) + '" data-action="' + a.action + '" data-row="' + i + '">' + a.label + '</button>';
+      }).join('');
+      return '<div class="feed-row" data-row="' + i + '"><span class="tag ' + r.cls + '">' + r.tag + '</span>' +
+        '<span class="feed-title">' + esc(r.text) + '</span><span class="feed-acts">' + acts + '</span></div>';
+    }).join('');
+    $('feed').hidden = false;
+
+    // Wire skill accept / dismiss.
+    $('feed-rows').querySelectorAll('button[data-skill]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-skill'), action = btn.getAttribute('data-action');
+        var row = $('feed-rows').querySelector('.feed-row[data-row="' + btn.getAttribute('data-row') + '"]');
+        if (row) row.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+        postJSON('/api/twin/skill-proposal-action', { id: id, action: action })
+          .then(function () {
+            if (row) row.remove();
+            if (!$('feed-rows').querySelector('.feed-row')) $('feed').hidden = true;
+          })
+          .catch(function () { if (row) row.querySelectorAll('button').forEach(function (b) { b.disabled = false; }); });
+      });
+    });
+  }
+
+  // ── spaces (where you are) + per-space loading ──────────────────────────
+  function sinceParam() {
+    try { return localStorage.getItem(SEEN_KEY) || new Date(Date.now() - SEVEN_DAYS).toISOString(); }
+    catch (e) { return new Date(Date.now() - SEVEN_DAYS).toISOString(); }
+  }
+  function markSeen() { try { localStorage.setItem(SEEN_KEY, new Date().toISOString()); } catch (e) {} }
+  function prettyType(t) { return String(t || '').replace(/[-_]+/g, ' ').replace(/\b\w/g, function (m) { return m.toUpperCase(); }); }
+  function shortLevel(l) { return ({ can_view: 'view', can_comment: 'comment', can_use: 'use', can_edit: 'edit', full_access: 'full' })[l] || l || ''; }
+  function dotColor(kind) { return kind === 'shared' ? '#0B6E5E' : kind === 'teamspace' ? '#7A5CFF' : kind === 'workspace' ? 'var(--ink)' : 'var(--yellow)'; }
+
+  function renderRecentItems(box, rows, emptyMsg) {
+    if (!rows.length) { box.innerHTML = '<div class="item item-empty">' + esc(emptyMsg) + '</div>'; return; }
+    box.innerHTML = rows.map(function (r) {
+      var inner = esc(r.title || 'Untitled') + ' <small>· ' + esc(r.meta || '') + (r.at ? ' · ' + timeAgo(r.at) : '') + '</small>';
+      return r.href ? '<a class="item" href="' + r.href + '">' + inner + '</a>' : '<span class="item">' + inner + '</span>';
+    }).join('');
+  }
+  // Voice is personal everywhere — fetch once, reuse across spaces.
+  function renderVoiceForSpace() {
+    if (state.personalNotes || SEAM) { renderVoiceRecent(state.personalNotes, false); return; }
+    safe(fetchJSON('/api/notes')).then(function (n) { state.personalNotes = n; renderVoiceRecent(n, false); });
+  }
+
+  // Personal — the full home.
+  function loadPersonalSpace() {
+    $('hero-label').textContent = 'Your knowledge, connected';
+    $('explore-subh').textContent = 'Newest page';
+    if (SEAM) { applyPersonal(SEAM.graph, SEAM.stats, SEAM.concepts, SEAM.notes, SEAM.recent, SEAM.panel, SEAM.serendipity); markSeen(); return; }
+    Promise.all([
+      safe(fetchJSON('/api/profile/hypergraph')),
+      safe(fetchJSON('/api/library/stats')),
+      safe(fetchJSON('/api/library/concepts')),
+      safe(fetchJSON('/api/notes')),
+      safe(fetchJSON('/api/twin/recent?limit=8')),
+      safe(fetchJSON('/api/twin/background-panel?since=' + encodeURIComponent(sinceParam()))),
+      safe(fetchJSON('/api/twin/serendipity'))
+    ]).then(function (res) { applyPersonal(res[0], res[1], res[2], res[3], res[4], res[5], res[6]); markSeen(); });
+  }
+  function applyPersonal(graph, stats, concepts, notes, recent, panel, serendipity) {
+    state.personalNotes = notes || state.personalNotes;
+    var itemCount = stats && typeof stats.totalItems === 'number' ? stats.totalItems
+                  : (graph && graph.workspace && graph.workspace.stats ? num(graph.workspace.stats.items) : ((graph && graph.nodes) ? graph.nodes.length : 0));
+    var cold = itemCount < COLD_START;
+    if (cold) showHeroGhost(); else showHeroGraph(graph);
+    renderStoreRecent(recent, cold);
+    renderVoiceRecent(notes, cold);
+    renderExplore(stats, concepts, notes, cold);
+    renderFeed(panel, serendipity);
+  }
+
+  // Workspace — graph re-scopes (workspace_id); widgets use what the backend exposes.
+  function loadWorkspaceSpace(space) {
+    $('hero-label').textContent = space.name;
+    $('explore-subh').textContent = 'Newest item';
+    if (SEAM) { applyWorkspace(space, SEAM.wsGraph || null, SEAM.wsItems || { items: [] }); return; }
+    Promise.all([
+      safe(fetchJSON('/api/profile/hypergraph?workspace_id=' + encodeURIComponent(space.id))),
+      safe(fetchJSON('/api/workspaces/' + encodeURIComponent(space.id) + '/items'))
+    ]).then(function (res) { applyWorkspace(space, res[0], res[1]); });
+  }
+  function applyWorkspace(space, graph, wsResp) {
+    var items = (wsResp && wsResp.items) || [];
+    var emptyItems = space.kind === 'teamspace' ? 'No items in this teamspace yet.' : 'No items contributed to this workspace yet.';
+    if (graph && graph.nodes && graph.nodes.length) showHeroGraph(graph);
+    else showHeroMessage(space.name + ' · nothing here yet');
+    renderRecentItems($('ss-recent'), items.slice(0, 4).map(function (it) {
+      return { title: it.title, meta: (it.contributor_email ? it.contributor_email.split('@')[0] : prettyType(it.type)), at: msOf(it.created_at) };
+    }), emptyItems);
+    renderVoiceForSpace();
+    var byType = {}; items.forEach(function (it) { byType[it.type] = (byType[it.type] || 0) + 1; });
+    var chips = [{ label: 'Items', n: items.length }];
+    Object.keys(byType).sort(function (a, b) { return byType[b] - byType[a]; }).slice(0, 4).forEach(function (t) { chips.push({ label: prettyType(t), n: byType[t] }); });
+    $('explore-chips').innerHTML = chips.map(function (c) { return '<span class="chip">' + esc(c.label) + ' <b>' + c.n + '</b></span>'; }).join('');
+    var newest = items.slice().sort(function (a, b) { return msOf(b.created_at) - msOf(a.created_at); })[0];
+    $('explore-newest').innerHTML = newest
+      ? '<span class="item">' + esc(newest.title || 'Untitled') + ' <small>· ' + esc(prettyType(newest.type)) + '</small></span>'
+      : '<div class="item item-empty">No shared knowledge yet.</div>';
+    $('feed').hidden = true;   // a workspace-scoped activity feed is not built yet
+  }
+
+  // Teamspace (a permission_group within a workspace) — graph + items scoped to
+  // the group via ?group_id=. "Closed": visible in the switcher, but its content
+  // is shown only to members (owner/admin always); non-members see a locked state.
+  function loadTeamspaceSpace(space) {
+    $('hero-label').textContent = space.name;
+    $('explore-subh').textContent = 'Newest item';
+    var canEnter = space.you_are_in || space.role === 'owner' || space.role === 'admin' || space.openness === 'open';
+    if (!canEnter) { applyTeamspaceLocked(space); return; }
+    if (SEAM) { applyWorkspace(space, SEAM.tsGraph || null, SEAM.tsItems || { items: [] }); return; }
+    var gp = '&group_id=' + encodeURIComponent(space.groupId);
+    Promise.all([
+      safe(fetchJSON('/api/profile/hypergraph?workspace_id=' + encodeURIComponent(space.id) + gp)),
+      safe(fetchJSON('/api/workspaces/' + encodeURIComponent(space.id) + '/items?group_id=' + encodeURIComponent(space.groupId)))
+    ]).then(function (res) {
+      // The server is the authoritative gate: if it reports the teamspace locked,
+      // show the locked state regardless of the client-side guess.
+      if (res[0] && res[0].locked) { applyTeamspaceLocked(space); return; }
+      applyWorkspace(space, res[0], res[1]);
+    });
+  }
+  function applyTeamspaceLocked(space) {
+    showHeroMessage(space.name + ' · invitation-only teamspace');
+    renderRecentItems($('ss-recent'), [], 'Ask an owner or admin to add you to this teamspace.');
+    renderVoiceForSpace();
+    $('explore-chips').innerHTML = '<span class="chip">Locked</span>';
+    $('explore-newest').innerHTML = '<div class="item item-empty">You\'re not a member of this teamspace yet.</div>';
+    $('feed').hidden = true;
+  }
+
+  // Shared with you — a collection, not a graph.
+  function loadSharedSpace() {
+    $('hero-label').textContent = 'Shared with you';
+    $('explore-subh').textContent = 'Newest share';
+    if (SEAM) { applyShared(SEAM.shared || { items: [] }); return; }
+    safe(fetchJSON('/api/library/shared')).then(function (s) { applyShared(s || { items: [] }); });
+  }
+  function applyShared(resp) {
+    var items = (resp && resp.items) || [];
+    showHeroMessage(items.length ? (items.length + ' item' + (items.length === 1 ? '' : 's') + ' shared with you') : 'Nothing shared with you yet');
+    renderRecentItems($('ss-recent'), items.slice(0, 4).map(function (it) {
+      return { title: it.title, meta: (it.owner_email ? it.owner_email.split('@')[0] : 'shared') + ' · ' + shortLevel(it.level), at: msOf(it.created_at), href: '/twin/library' };
+    }), 'Nothing shared with you yet.');
+    renderVoiceForSpace();
+    $('explore-chips').innerHTML = '<span class="chip">Shared <b>' + items.length + '</b></span>';
+    var newest = items.slice().sort(function (a, b) { return msOf(b.created_at) - msOf(a.created_at); })[0];
+    $('explore-newest').innerHTML = newest
+      ? '<a class="item" href="/twin/library">' + esc(newest.title || 'Untitled') + ' <small>· ' + esc(shortLevel(newest.level)) + '</small></a>'
+      : '<div class="item item-empty">Nothing shared yet.</div>';
+    var rows = items.slice(0, 5).map(function (it) {
+      return (it.owner_email ? it.owner_email.split('@')[0] + ' shared ' : 'Shared ') + '“' + (it.title || 'an item') + '” · ' + shortLevel(it.level);
+    });
+    if (!rows.length) { $('feed').hidden = true; return; }
+    $('feed-rows').innerHTML = rows.map(function (text) {
+      return '<div class="feed-row"><span class="tag connection">SHARE</span><span class="feed-title">' + esc(text) +
+        '</span><span class="feed-acts"><a class="btn" href="/twin/library">Open</a></span></div>';
+    }).join('');
+    $('feed').hidden = false;
+  }
+
+  function loadCurrentSpace() {
+    var s = state.currentSpace || { kind: 'personal' };
+    if (s.kind === 'teamspace') return loadTeamspaceSpace(s);
+    if (s.kind === 'workspace') return loadWorkspaceSpace(s);
+    if (s.kind === 'shared') return loadSharedSpace();
+    return loadPersonalSpace();
+  }
+
+  // ── switcher ────────────────────────────────────────────────────────────
+  function loadSpaces() {
+    if (SEAM) {
+      state.workspaces = SEAM.workspaces || [];
+      // SEAM mirrors the API ({groups:[...]}); normalise to the groups array, as the live path does.
+      state.teamspacesByWs = {};
+      var tmap = SEAM.teamspaces || {};
+      Object.keys(tmap).forEach(function (k) { state.teamspacesByWs[k] = (tmap[k] && tmap[k].groups) || tmap[k] || []; });
+      state.hasShares = !!(SEAM.shared && SEAM.shared.items && SEAM.shared.items.length);
+      renderSwitcher(); return;
+    }
+    Promise.all([safe(fetchJSON('/api/workspaces')), safe(fetchJSON('/api/library/shared'))]).then(function (res) {
+      state.workspaces = (res[0] && res[0].workspaces) || [];
+      state.hasShares = !!(res[1] && res[1].items && res[1].items.length);
+      renderSwitcher();   // show workspaces immediately
+      // Then load each workspace's teamspaces (permission groups) and re-render.
+      state.teamspacesByWs = {};
+      if (state.workspaces.length) {
+        Promise.all(state.workspaces.map(function (w) {
+          return safe(fetchJSON('/api/workspaces/' + encodeURIComponent(w.id) + '/groups'))
+            .then(function (g) { state.teamspacesByWs[w.id] = (g && g.groups) || []; });
+        })).then(function () { renderSwitcher(); });
+      }
+    });
+  }
+  function spaceItem(idx, space, meta, manage) {
+    var right = manage ? '<span class="sp-manage" role="link">manage</span>' : (meta ? '<span class="sp-meta">' + esc(meta) + '</span>' : '');
+    var cls = 'space-item' + (space.kind === 'teamspace' ? ' teamspace' : '');
+    return '<div class="' + cls + '" role="menuitem" tabindex="0" data-idx="' + idx + '">' +
+      '<span class="sp-dot" style="background:' + dotColor(space.kind) + '"></span>' +
+      '<span class="sp-name">' + esc(space.name) + '</span>' + right + '</div>';
+  }
+  function renderSwitcher() {
+    if (!state.isAuth && !state.anonToken) return;
+    $('space-switcher').hidden = false;
+    $('sp-cur-dot').style.background = dotColor((state.currentSpace || {}).kind || 'personal');
+    // Keep the space objects in JS, keyed by index — never serialise them into the DOM.
+    state._switcherSpaces = [];
+    function push(space, meta, manage) { var idx = state._switcherSpaces.push(space) - 1; return spaceItem(idx, space, meta, manage); }
+    var html = '<div class="space-group-label">Your space</div>';
+    html += push({ kind: 'personal', name: 'Personal' }, 'your twin', false);
+    html += push({ kind: 'shared', name: 'Shared with you' }, state.hasShares ? 'items' : 'nothing yet', false);
+    if (state.workspaces.length) {
+      html += '<div class="space-divider"></div><div class="space-group-label">Workspaces</div>';
+      state.workspaces.forEach(function (w) {
+        var canManage = w.role === 'owner' || w.role === 'admin';
+        // Never fabricate a member count — show it only when the API supplies it.
+        var meta = (typeof w.member_count === 'number' ? w.member_count + ' · ' : '') + (w.role || '');
+        html += push({ kind: 'workspace', id: w.id, name: w.name, role: w.role }, meta, canManage);
+        // Teamspaces (permission groups) nested under the workspace, invite-based.
+        var ts = (state.teamspacesByWs && state.teamspacesByWs[w.id]) || [];
+        if (!Array.isArray(ts)) ts = ts.groups || [];
+        ts.forEach(function (g) {
+          var openness = g.openness || 'closed';
+          var tmeta = (typeof g.member_count === 'number' ? g.member_count + ' · ' : '') + openness;
+          html += push({ kind: 'teamspace', id: w.id, groupId: g.id, name: g.name, role: w.role, you_are_in: !!g.you_are_in, openness: openness }, tmeta, false);
+        });
+      });
+    }
+    html += '<div class="space-divider"></div><button type="button" class="space-action" id="space-new">+ New workspace</button>';
+    var menu = $('space-menu'); menu.innerHTML = html;
+    menu.querySelectorAll('.space-item').forEach(function (it) {
+      it.addEventListener('click', function () {
+        var sp = state._switcherSpaces[+it.getAttribute('data-idx')];
+        if (!sp) return;
+        menu.hidden = true; $('space-trigger').setAttribute('aria-expanded', 'false');
+        selectSpace(sp);
+      });
+    });
+    menu.querySelectorAll('.sp-manage').forEach(function (m) {
+      m.addEventListener('click', function (e) { e.stopPropagation(); location.href = '/twin/profile#workspaces'; });
+    });
+    var nb = $('space-new'); if (nb) nb.addEventListener('click', function () { location.href = '/twin/profile#workspaces'; });
+    markSwitcherActive();
+  }
+  function markSwitcherActive() {
+    var cur = state.currentSpace || { kind: 'personal' };
+    document.querySelectorAll('#space-menu .space-item').forEach(function (it) {
+      var sp = (state._switcherSpaces || [])[+it.getAttribute('data-idx')] || {};
+      it.classList.toggle('active', sp.kind === cur.kind && (sp.id || '') === (cur.id || '') && (sp.groupId || '') === (cur.groupId || ''));
+    });
+  }
+  function selectSpace(space) {
+    state.currentSpace = space;
+    $('sp-cur-name').textContent = space.name;
+    $('sp-cur-dot').style.background = dotColor(space.kind);
+    markSwitcherActive();
+    loadCurrentSpace();
+  }
+  (function wireSwitcher() {
+    var trig = $('space-trigger'), menu = $('space-menu');
+    trig.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var open = menu.hidden === false;
+      menu.hidden = open; trig.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', function () { if (!menu.hidden) { menu.hidden = true; trig.setAttribute('aria-expanded', 'false'); } });
+  })();
+
+  // ── anon modals (claim / sign-in) ──────────────────────────────────────
+  // Capture a referral slug from /twin?ref=<slug> on landing and persist it so
+  // it survives in-app navigation until the user claims their twin.
+  function mtRef() {
+    try {
+      var u = new URLSearchParams(location.search).get('ref');
+      if (u && /^[A-Za-z0-9_-]{1,64}$/.test(u)) sessionStorage.setItem('mt_ref', u);
+      return sessionStorage.getItem('mt_ref') || null;
+    } catch (e) { return null; }
+  }
+  mtRef();
+
+  function wireModal(modalId, openBtnId, closeId, formId, idleId, sentId, errId, endpoint, withTenant) {
+    var modal = $(modalId);
+    function open() { $(idleId).hidden = false; $(sentId).hidden = true; $(errId).hidden = true; modal.hidden = false; var inp = modal.querySelector('input'); if (inp) { inp.value = ''; setTimeout(function () { inp.focus(); }, 40); } }
+    function close() { modal.hidden = true; }
+    if (openBtnId) $(openBtnId).addEventListener('click', open);
+    $(closeId).addEventListener('click', close);
+    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    $(formId).addEventListener('submit', function (e) {
+      e.preventDefault();
+      var email = modal.querySelector('input').value.trim();
+      if (!email) return;
+      var body = { email: email };
+      if (withTenant) { var t = getAnonTenantId(); if (t) body.tenant_id = t; var r = mtRef(); if (r) body.referrer = r; }
+      var btn = $(formId).querySelector('button[type="submit"]'); btn.disabled = true;
+      postJSON(endpoint, body)
+        .then(function () { $(idleId).hidden = true; $(sentId).hidden = false; })
+        .catch(function () { $(idleId).hidden = true; $(errId).hidden = false; })
+        .finally(function () { btn.disabled = false; });
+    });
+    return { open: open, close: close };
+  }
+  wireModal('claim-modal', 'save-twin-btn', 'claim-close', 'claim-form', 'claim-idle', 'claim-sent', 'claim-error', '/api/auth/claim', true);
+  wireModal('signin-modal', 'signin-link-btn', 'signin-close', 'signin-form', 'signin-idle', 'signin-sent', 'signin-error', '/api/auth/signin', false);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { $('claim-modal').hidden = true; $('signin-modal').hidden = true; } });
+
+  // ── boot ─────────────────────────────────────────────────────────────────
+  (function init() {
+    // Strip post-auth params left by claim/sign-in redirects.
+    var params = new URLSearchParams(location.search);
+    if (params.get('claimed') === '1' || params.get('signedin') === '1') history.replaceState({}, '', '/twin');
+
+    // Instant identity guess from the last session so a signed-in owner never
+    // flashes the anonymous header; validateSession confirms or corrects it (A2).
+    try { state.isAuth = localStorage.getItem('mt_is_authenticated') === 'true'; state.email = localStorage.getItem('mt_user_email') || null; } catch (e) {}
+    updateHeader();
+    validateSession().then(function () {
+      updateHeader();
+      // Only mint an anonymous session for a genuinely new visitor — never for a
+      // signed-in user (that would create an orphan anonymous tenant).
+      return (SEAM || state.isAuth) ? null : ensureSession();
+    }).then(function () {
+      updateHeader();
+      loadSpaces();        // populate the space switcher (Personal / Shared / workspaces)
+      loadCurrentSpace();  // default space = Personal
+      // setTimeout (not rAF) so the page still reveals if first-loaded in a
+      // background tab, where rAF is paused.
+      setTimeout(function () { $('page').classList.add('in'); }, 0);
+    });
+  })();
+})();
+</script>
+</body>
+</html>

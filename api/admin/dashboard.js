@@ -58,8 +58,9 @@ export default async function handler(req, res) {
     // (Previously this was scoped to invite-redeemed users only — pre-existing
     // users wouldn't show. Now every user with audit activity is counted, and
     // we expose them in the users[] panel further down.)
-    const { data: allUsers } = await db.from('users').select('id, email, tenant_id, created_at');
+    const { data: allUsers } = await db.from('users').select('id, email, tenant_id, created_at, referred_by_user_id, referred_via');
     const allUserIds = (allUsers || []).map(u => u.id);
+    const emailById = {}; for (const u of allUsers || []) emailById[u.id] = u.email;
 
     const activity = {};
     if (allUserIds.length) {
@@ -184,6 +185,93 @@ export default async function handler(req, res) {
       activeUsersHourly = hours;
     }
 
+    // ── Viral / public-sharing funnel (Phase 3) ───────────────────────────────
+    // The single number to watch: did a real user share or invite someone who
+    // then signed up. We build it from four event types + the public_links and
+    // invitations tables, all bucketed in JS at prelaunch scale.
+    const sharesByType = { item: 0, concept: 0, answer: 0 };
+    const sharesByUser = {};      // sharer user_id → count of public links created
+    const viewsByOwner = {};      // owner user_id → public-link view events
+    const uniqueViewers = new Set();
+    let viewEventTotal = 0;
+    {
+      const { data: viralEvents } = await db.from('audit_log')
+        .select('user_id, event_type, context')
+        .in('event_type', ['share_created', 'public_link_viewed', 'signup_attributed']);
+      for (const e of viralEvents || []) {
+        const ctx = e.context || {};
+        if (e.event_type === 'share_created') {
+          if (sharesByType[ctx.object_type] !== undefined) sharesByType[ctx.object_type] += 1;
+          if (e.user_id) sharesByUser[e.user_id] = (sharesByUser[e.user_id] || 0) + 1;
+        } else if (e.event_type === 'public_link_viewed') {
+          viewEventTotal += 1;
+          if (ctx.viewer) uniqueViewers.add(ctx.viewer);
+          if (e.user_id) viewsByOwner[e.user_id] = (viewsByOwner[e.user_id] || 0) + 1;
+        }
+      }
+    }
+
+    // public_links: total views (counter) + active links by type/owner.
+    let publicLinksTotalViews = 0, activePublicLinks = 0;
+    const linksByType = { item: 0, concept: 0, answer: 0 };
+    const linksByOwner = {};
+    {
+      const { data: publicLinks } = await db.from('public_links')
+        .select('view_count, revoked, object_item_id, object_concept_page_id, object_answer_id, owner_user_id');
+      for (const l of publicLinks || []) {
+        publicLinksTotalViews += (l.view_count || 0);
+        if (!l.revoked) {
+          activePublicLinks += 1;
+          const t = l.object_concept_page_id ? 'concept' : l.object_answer_id ? 'answer' : 'item';
+          linksByType[t] += 1;
+          if (l.owner_user_id) linksByOwner[l.owner_user_id] = (linksByOwner[l.owner_user_id] || 0) + 1;
+        }
+      }
+    }
+
+    // Item-share invitations (person-to-person), distinct from prelaunch codes.
+    let itemInvitesSent = 0, itemInvitesAccepted = 0;
+    {
+      const { data: itemInvites } = await db.from('invitations').select('accepted_at');
+      itemInvitesSent = (itemInvites || []).length;
+      itemInvitesAccepted = (itemInvites || []).filter(i => i.accepted_at).length;
+    }
+
+    // Attributed signups: new accounts stamped with referred_by_user_id (set when
+    // a public link's viewer signed up). Grouped by the referring user.
+    const attributedUsers = (allUsers || []).filter(u => u.referred_by_user_id);
+    const attributedByReferrer = {};
+    const referredEmailsByReferrer = {};
+    for (const u of attributedUsers) {
+      attributedByReferrer[u.referred_by_user_id] = (attributedByReferrer[u.referred_by_user_id] || 0) + 1;
+      (referredEmailsByReferrer[u.referred_by_user_id] ||= []).push(u.email);
+    }
+    const referrers = Object.keys(referredEmailsByReferrer).map(rid => ({
+      user_id: rid,
+      email: emailById[rid] || null,
+      attributed_signups: attributedByReferrer[rid],
+      referred_emails: referredEmailsByReferrer[rid],
+    })).sort((a, b) => b.attributed_signups - a.attributed_signups);
+
+    const sharesCreatedTotal = sharesByType.item + sharesByType.concept + sharesByType.answer;
+    const viral = {
+      shares_created_total:    sharesCreatedTotal,
+      shares_by_type:          sharesByType,
+      active_public_links:     activePublicLinks,
+      public_links_by_type:    linksByType,
+      public_link_views_total: publicLinksTotalViews,   // total view events (counter)
+      public_link_views_unique: uniqueViewers.size,     // distinct viewer fingerprints
+      item_invites_sent:       itemInvitesSent,
+      item_invites_accepted:   itemInvitesAccepted,
+      attributed_signups_total: attributedUsers.length,
+      // The funnel to watch day to day during the beta.
+      funnel: {
+        shares_created:    sharesCreatedTotal,
+        views_unique:      uniqueViewers.size,
+        attributed_signups: attributedUsers.length,
+      },
+    };
+
     // 3d. Set of user_ids that came in through an invite redemption — used to
     // tag rows in the users[] panel so you can tell invited vs pre-existing apart.
     const invitedUserIdSet = new Set((invites || []).map(i => i.redeemed_by_user_id).filter(Boolean));
@@ -306,6 +394,11 @@ export default async function handler(req, res) {
         returning:        !!(a && a.distinct_days.size >= 2),
         invited_via,
         invited_someone,
+        // Public-sharing activity for this account.
+        shares_created:     sharesByUser[u.id] || 0,
+        public_link_views:  viewsByOwner[u.id] || 0,
+        attributed_signups: attributedByReferrer[u.id] || 0,
+        referred_by:        u.referred_by_user_id ? (emailById[u.referred_by_user_id] || u.referred_by_user_id) : null,
       };
     }).sort((x, y) =>
       (y.submissions - x.submissions) || (y.tool_calls - x.tool_calls)
@@ -315,7 +408,9 @@ export default async function handler(req, res) {
     const { count: waitlistCount } = await db.from('waitlist').select('id', { count: 'exact', head: true });
 
     return res.status(200).json({
-      stats: { ...stats, waitlist: waitlistCount || 0 },
+      stats: { ...stats, waitlist: waitlistCount || 0, viral },
+      viral,
+      referrers,
       rows,
       users,
       active_users_daily:  activeUsersDaily,

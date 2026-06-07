@@ -20,6 +20,11 @@
   --dim-2:   #8088bb;
   --yellow:  #FFD400;
   --red:     #ff5d7a;
+  /* Aliases so the ported workspaces UI (ws-styles) themes to the dark surface
+     instead of falling back to its cream defaults. */
+  --card:        #0a0c1a;
+  --muted:       #8088bb;
+  --yellow-deep: #FFD400;
 }
 
 html, body {
@@ -101,7 +106,7 @@ header.site-header {
 #hypergraph-status .hg-line2 { color: var(--dim-2); margin-top: 8px; font-size: 11px; }
 #hypergraph-status { z-index: 4; }
 
-/* The surfacing moment — a line about your own mind, on arrival. */
+/* The surfacing moment - a line about your own mind, on arrival. */
 .brain-surfacing {
   position: absolute; top: 22px; left: 22px; right: auto; z-index: 6;
   max-width: 360px;
@@ -323,8 +328,9 @@ body.grabbing, body.grabbing #hypergraph-container #scene canvas { cursor: grabb
       </span>
     </a>
     <span class="header-spacer"></span>
-    <a href="/twin" class="nav-link">Twin</a>
-    <a href="/twin/library" class="nav-link">Library</a>
+    <a href="/twin/chat" class="nav-link">Store &amp; Search</a>
+    <a href="/voice" class="nav-link">Voice</a>
+    <a href="/twin/library" class="nav-link">Brain</a>
   </div>
 </header>
 
@@ -335,7 +341,7 @@ body.grabbing, body.grabbing #hypergraph-container #scene canvas { cursor: grabb
   <div id="grain"></div>
   <div id="hypergraph-status">
     <div>
-      <div class="hg-line1">Loading your hypergraph…</div>
+      <div class="hg-line1">Loading your graph…</div>
       <div class="hg-line2" id="hg-detail"></div>
     </div>
   </div>
@@ -349,7 +355,7 @@ body.grabbing, body.grabbing #hypergraph-container #scene canvas { cursor: grabb
 <div id="ph-modal" class="modal-backdrop" hidden>
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="ph-modal-title">
     <div class="modal-eyebrow">Seed your twin</div>
-    <div class="modal-title" id="ph-modal-title">—</div>
+    <div class="modal-title" id="ph-modal-title">-</div>
     <div class="modal-hint" id="ph-modal-hint"></div>
     <textarea class="modal-textarea" id="ph-modal-input" placeholder="Write freely. A few sentences is plenty to start."></textarea>
     <div class="modal-error" id="ph-modal-error" hidden></div>
@@ -369,16 +375,16 @@ body.grabbing, body.grabbing #hypergraph-container #scene canvas { cursor: grabb
     <div class="identity-row">
       <div class="avatar" id="identity-avatar">·</div>
       <div class="identity-main">
-        <div class="identity-name" id="identity-name">—</div>
-        <div class="identity-meta" id="identity-meta">—</div>
+        <div class="identity-name" id="identity-name">-</div>
+        <div class="identity-meta" id="identity-meta">-</div>
       </div>
       <div class="stats-row">
         <div class="stat">
-          <div class="stat-num" id="stat-items">—</div>
+          <div class="stat-num" id="stat-items">-</div>
           <div class="stat-label">Bricks laid</div>
         </div>
         <div class="stat" id="stat-concept-wrap">
-          <div class="stat-num" id="stat-concepts">—</div>
+          <div class="stat-num" id="stat-concepts">-</div>
           <div class="stat-label">Concept pages</div>
         </div>
       </div>
@@ -393,23 +399,29 @@ body.grabbing, body.grabbing #hypergraph-container #scene canvas { cursor: grabb
 
         <div class="section">
           <div class="section-label">Email</div>
-          <div class="section-value" id="set-email">—</div>
+          <div class="section-value" id="set-email">-</div>
         </div>
 
-        <div class="section">
-          <div class="section-label">Workspaces</div>
-          <p class="section-meta" style="margin-bottom:12px">Create and manage organisation workspaces, invite members, and control who has access.</p>
-          <a href="/account.html" class="btn">Manage workspaces</a>
+        <div class="section" id="workspaces">
+          <div class="section-label">Organisation Workspaces</div>
+          <p class="section-meta" style="margin-bottom:12px">Shared spaces where a team contributes knowledge. Every member's twin can draw on what the workspace holds. Your personal twin stays yours.</p>
+          <div id="ws-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="ws-new-name" placeholder="New workspace name" maxlength="80"
+              style="flex:1;min-width:0;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;font:inherit;background:var(--panel);color:var(--ink)">
+            <button type="button" class="btn btn-primary" id="ws-create-btn">Create</button>
+          </div>
+          <div id="ws-msg" style="font-size:13px;margin-top:8px;min-height:1em"></div>
         </div>
 
         <div class="section">
           <div class="section-label">Shared Twin</div>
           <div id="shared-empty" style="margin-top:4px">
-            <p class="section-meta" style="margin-bottom:12px">Share a read-only view of your twin with others — only items you mark as Sharable are visible.</p>
+            <p class="section-meta" style="margin-bottom:12px">Share a read-only view of your twin with others. Only items you mark as Sharable are visible.</p>
             <button type="button" class="btn btn-primary" id="generate-token-btn">Generate shared MCP link</button>
           </div>
           <div id="shared-new-token" hidden>
-            <p class="section-meta" style="margin-bottom:8px">Share this link. It's shown once — save it now.</p>
+            <p class="section-meta" style="margin-bottom:8px">Share this link. It's shown once, so save it now.</p>
             <div class="token-url-box" id="new-token-url"></div>
             <p class="token-warning">This link won't be shown again.</p>
             <div style="margin-top:12px;display:flex;gap:8px">
@@ -420,8 +432,8 @@ body.grabbing, body.grabbing #hypergraph-container #scene canvas { cursor: grabb
           <div id="shared-active" hidden>
             <div class="token-row">
               <div class="token-info">
-                <div class="token-prefix" id="active-token-prefix">—</div>
-                <div class="token-dates" id="active-token-dates">—</div>
+                <div class="token-prefix" id="active-token-prefix">-</div>
+                <div class="token-dates" id="active-token-dates">-</div>
               </div>
               <button type="button" class="btn" id="revoke-token-btn">Revoke</button>
             </div>
@@ -524,7 +536,7 @@ async function loadProfile() {
 
 function renderProfile(data) {
   _isOwner = !!data.viewer_is_owner;
-  const name  = (data.owner && data.owner.name)  || '—';
+  const name  = (data.owner && data.owner.name)  || '-';
   const email = (data.owner && data.owner.email) || '';
 
   document.getElementById('identity-avatar').textContent = (name || '·').trim().charAt(0).toUpperCase() || '·';
@@ -545,16 +557,31 @@ function renderProfile(data) {
   // Settings: owner-only.
   if (_isOwner) {
     document.getElementById('settings').hidden = false;
-    document.getElementById('set-email').textContent = email || '—';
+    document.getElementById('set-email').textContent = email || '-';
     _currentTokens = data.shared_tokens || [];
     renderSharedSection();
+    loadWorkspaces();
+    maybeOpenSettingsFromHash();
   }
+}
+
+// The avatar menu deep-links here via #settings / #workspaces - expand the
+// (collapsed-by-default) Settings panel and scroll to the right section.
+function maybeOpenSettingsFromHash() {
+  const h = (location.hash || '').replace('#', '');
+  if (h !== 'settings' && h !== 'workspaces') return;
+  const toggle = document.getElementById('settings-toggle');
+  const body = document.getElementById('settings-body');
+  if (toggle) toggle.setAttribute('aria-expanded', 'true');
+  if (body) body.hidden = false;
+  const target = document.getElementById(h === 'workspaces' ? 'workspaces' : 'settings');
+  if (target) setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 90);
 }
 
 // ── Hypergraph data wiring ───────────────────────────────────────────────────
 let _hgDispose = null;
 // The surfacing moment: one line about the user's own mind, computed from the
-// graph data already fetched. Pure delight — wrapped so it can never break the
+// graph data already fetched. Pure delight - wrapped so it can never break the
 // page; a failure just leaves the element hidden.
 function renderSurfacingMoment(graph) {
   try {
@@ -574,7 +601,7 @@ function renderSurfacingMoment(graph) {
     // Additions in the last 30 days.
     const now = Date.now();
     const recent = nodes.filter(n => n.created_at && (now - new Date(n.created_at).getTime()) < 30 * 864e5).length;
-    // The hub — most-connected node.
+    // The hub - most-connected node.
     let hub = null, hubDeg = -1;
     for (const n of nodes) { const d = n.degree || 0; if (d > hubDeg) { hubDeg = d; hub = n; } }
 
@@ -606,7 +633,7 @@ async function loadHypergraph() {
       // or dismissed every placeholder slot.
       if (_hgDispose) { _hgDispose(); _hgDispose = null; }
       status.hidden = false;
-      document.querySelector('#hypergraph-status .hg-line1').textContent = 'Your hypergraph is empty for now.';
+      document.querySelector('#hypergraph-status .hg-line1').textContent = 'Your graph is empty for now.';
       detail.textContent = 'Add knowledge to your twin to grow the graph.';
       return;
     }
@@ -617,7 +644,7 @@ async function loadHypergraph() {
   } catch (err) {
     if (_hgDispose) { _hgDispose(); _hgDispose = null; }
     status.hidden = false;
-    document.querySelector('#hypergraph-status .hg-line1').textContent = 'Could not load the hypergraph.';
+    document.querySelector('#hypergraph-status .hg-line1').textContent = 'Could not load the graph.';
     detail.textContent = 'Try refreshing.';
   }
 }
@@ -895,7 +922,7 @@ function renderHypergraph(graph) {
     b.addEventListener('mouseleave', phHideSoon, { signal: sig });
   }
 
-  // Hover tooltip. Titles are user data — built with textContent to avoid injection.
+  // Hover tooltip. Titles are user data - built with textContent to avoid injection.
   const ray = new THREE.Raycaster();
   const mvec = new THREE.Vector2();
   const tip = document.getElementById('tip');
@@ -1224,6 +1251,337 @@ document.getElementById('delete-confirm-btn')?.addEventListener('click', async (
     errEl.textContent = err.message; errEl.hidden = false;
     btn.disabled = false; btn.textContent = 'Permanently delete';
   }
+});
+
+// ── Organisation workspaces (merged in from the retired /account.html) ───────
+async function wsFetch(path, opts = {}) {
+  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) { const e = new Error(body.error || ('HTTP ' + res.status)); e.status = res.status; throw e; }
+  return body;
+}
+
+function ensureWsStyles() {
+  if (document.getElementById('ws-styles')) return;
+  const css = document.createElement('style');
+  css.id = 'ws-styles';
+  css.textContent = [
+    '.ws-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line,#E8E2D4);border-radius:8px;background:var(--card,#fff);}',
+    '.ws-row-name{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+    '.ws-row-meta{font-size:12px;color:var(--muted,#857C6E);}',
+    '.ws-overlay{position:fixed;inset:0;background:rgba(15,14,13,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;}',
+    '.ws-modal{background:var(--card,#fff);border:1px solid var(--line,#E8E2D4);border-radius:14px;width:100%;max-width:480px;max-height:85vh;overflow:auto;padding:22px;}',
+    '.ws-modal h3{font-family:Georgia,serif;font-size:20px;margin:0 0 2px;}',
+    '.ws-mlist{list-style:none;margin:8px 0 0;padding:0;}',
+    '.ws-mlist li{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line,#E8E2D4);font-size:14px;}',
+    '.ws-memail{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+    '.ws-role{font-size:12px;color:var(--muted,#857C6E);text-transform:capitalize;}',
+    '.ws-pending{font-size:11px;color:var(--yellow-deep,#F5C500);font-weight:600;text-transform:uppercase;}',
+    '.ws-x{border:none;background:none;color:var(--muted,#857C6E);cursor:pointer;font-size:16px;padding:0 4px;}',
+    '.ws-x:hover{color:var(--red,#c0392b);}',
+    '.ws-add{display:flex;gap:8px;margin-top:16px;}',
+    '.ws-add input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--line,#E8E2D4);border-radius:8px;font:inherit;background:var(--panel,#fff);color:var(--ink,#0F0E0D);}',
+    '.ws-add select{padding:8px;border:1px solid var(--line,#E8E2D4);border-radius:8px;font:inherit;background:var(--panel,#fff);color:var(--ink,#0F0E0D);}',
+    '.ws-msg2{font-size:13px;margin-top:8px;min-height:1em;}',
+    '.ws-section-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#857C6E);margin:16px 0 0;}',
+    '.btn-secondary{background:rgba(150,160,220,0.06);color:var(--ink);}',
+  ].join('');
+  document.head.appendChild(css);
+}
+
+function renderWorkspaces(list) {
+  const wrap = document.getElementById('ws-list');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (!list || !list.length) {
+    const p = document.createElement('p'); p.className = 'section-meta';
+    p.textContent = 'No workspaces yet. Create one below to start a shared space.';
+    wrap.appendChild(p); return;
+  }
+  list.forEach(w => {
+    const row = document.createElement('div'); row.className = 'ws-row';
+    const name = document.createElement('span'); name.className = 'ws-row-name'; name.textContent = w.name; row.appendChild(name);
+    const meta = document.createElement('span'); meta.className = 'ws-row-meta';
+    meta.textContent = (w.member_count || 1) + ' member' + ((w.member_count || 1) !== 1 ? 's' : '') + ' · ' + w.role;
+    row.appendChild(meta);
+    const btn = document.createElement('button'); btn.className = 'btn btn-secondary'; btn.textContent = 'Manage';
+    btn.onclick = () => openWorkspaceManage(w); row.appendChild(btn);
+    wrap.appendChild(row);
+  });
+}
+
+async function loadWorkspaces() {
+  ensureWsStyles();
+  try { renderWorkspaces((await wsFetch('/api/workspaces')).workspaces || []); }
+  catch (e) { console.error('[profile] workspaces load failed:', e.message); }
+}
+
+// Restrict a single workspace item to groups (P3). Empty selection => workspace-wide.
+async function openItemRestrictModal(ws, item) {
+  ensureWsStyles();
+  const overlay = document.createElement('div'); overlay.className = 'ws-overlay';
+  const modal = document.createElement('div'); modal.className = 'ws-modal'; overlay.appendChild(modal);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  modal.appendChild(Object.assign(document.createElement('h3'), { textContent: 'Restrict access' }));
+  modal.appendChild(Object.assign(document.createElement('p'), { className: 'section-meta', textContent: item.title || 'Untitled' }));
+  const body = document.createElement('div'); modal.appendChild(body);
+  const msg = document.createElement('p'); msg.className = 'ws-msg2'; modal.appendChild(msg);
+  document.body.appendChild(overlay);
+  try {
+    const [groupsData, current] = await Promise.all([
+      wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/groups'),
+      wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/items/' + encodeURIComponent(item.id) + '/groups'),
+    ]);
+    const groups = groupsData.groups || [];
+    const selected = new Set(current.group_ids || []);
+    if (!groups.length) {
+      body.appendChild(Object.assign(document.createElement('p'), { className: 'section-meta', textContent: 'No groups yet. Create a group first, then you can restrict items to it.' }));
+    } else {
+      body.appendChild(Object.assign(document.createElement('p'), { className: 'section-meta', textContent: 'Tick the groups that may see this item. Leave all unticked to keep it visible to the whole workspace.' }));
+      const ul = document.createElement('ul'); ul.className = 'ws-mlist';
+      groups.forEach(g => {
+        const li = document.createElement('li');
+        const lab = document.createElement('label'); lab.style.cssText = 'flex:1;display:flex;align-items:center;gap:8px;cursor:pointer';
+        const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = g.id; cb.checked = selected.has(g.id);
+        lab.appendChild(cb); lab.appendChild(document.createTextNode(g.name + ' (' + g.member_count + ')'));
+        li.appendChild(lab); ul.appendChild(li);
+      });
+      body.appendChild(ul);
+    }
+    const foot = document.createElement('div'); foot.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;margin-top:16px';
+    const cancel = document.createElement('button'); cancel.className = 'btn btn-secondary'; cancel.textContent = 'Cancel'; cancel.onclick = close;
+    const save = document.createElement('button'); save.className = 'btn btn-primary'; save.textContent = 'Save';
+    save.onclick = async () => {
+      save.disabled = true; msg.textContent = '';
+      const ids = [...body.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value);
+      try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/items/' + encodeURIComponent(item.id) + '/groups', { method: 'PUT', body: JSON.stringify({ group_ids: ids }) }); close(); }
+      catch (e) { msg.textContent = 'Could not save: ' + (e.message || ''); save.disabled = false; }
+    };
+    foot.appendChild(cancel); foot.appendChild(save); modal.appendChild(foot);
+  } catch (e) { msg.textContent = 'Could not load groups: ' + (e.message || ''); }
+}
+
+// Manage a workspace's groups (P3): create, delete, and group membership.
+async function openGroupsModal(ws) {
+  ensureWsStyles();
+  const overlay = document.createElement('div'); overlay.className = 'ws-overlay';
+  const modal = document.createElement('div'); modal.className = 'ws-modal'; overlay.appendChild(modal);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  modal.appendChild(Object.assign(document.createElement('h3'), { textContent: ws.name + ' · Groups' }));
+  const listWrap = document.createElement('div'); modal.appendChild(listWrap);
+  const msg = document.createElement('p'); msg.className = 'ws-msg2'; modal.appendChild(msg);
+
+  const add = document.createElement('div'); add.className = 'ws-add';
+  const nameI = document.createElement('input'); nameI.placeholder = 'New teamspace name'; nameI.maxLength = 60;
+  const openS = document.createElement('select');
+  [['closed', 'Closed, invite-only'], ['open', 'Open, any member'], ['private', 'Private, hidden']].forEach(([v, l]) => {
+    const o = document.createElement('option'); o.value = v; o.textContent = l; openS.appendChild(o);
+  });
+  const addBtn = document.createElement('button'); addBtn.className = 'btn btn-primary'; addBtn.textContent = 'Create';
+  addBtn.onclick = async () => {
+    const n = (nameI.value || '').trim(); if (!n) { msg.textContent = 'Enter a teamspace name.'; return; }
+    addBtn.disabled = true; msg.textContent = '';
+    try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/groups', { method: 'POST', body: JSON.stringify({ name: n, openness: openS.value }) }); nameI.value = ''; await refresh(); }
+    catch (e) { msg.textContent = 'Could not create: ' + (e.message || ''); }
+    finally { addBtn.disabled = false; }
+  };
+  add.appendChild(nameI); add.appendChild(openS); add.appendChild(addBtn); modal.appendChild(add);
+
+  const foot = document.createElement('div'); foot.style.cssText = 'display:flex;justify-content:flex-end;margin-top:16px';
+  const doneBtn = document.createElement('button'); doneBtn.className = 'btn btn-secondary'; doneBtn.textContent = 'Done'; doneBtn.onclick = close;
+  foot.appendChild(doneBtn); modal.appendChild(foot);
+  document.body.appendChild(overlay);
+
+  let wsMembers = [];
+  async function loadGroupMembers(g, wrap) {
+    wrap.innerHTML = '';
+    let gms = [];
+    try { gms = (await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/groups/' + encodeURIComponent(g.id))).members || []; } catch {}
+    const inSet = new Set(gms.map(m => m.user_id));
+    gms.forEach(m => {
+      const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:13px;padding:2px 0';
+      row.appendChild(Object.assign(document.createElement('span'), { className: 'ws-memail', textContent: m.email || m.user_id }));
+      const x = document.createElement('button'); x.className = 'ws-x'; x.textContent = '×'; x.title = 'Remove from group';
+      x.onclick = async () => { x.disabled = true; try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/groups/' + encodeURIComponent(g.id) + '/members', { method: 'DELETE', body: JSON.stringify({ user_id: m.user_id }) }); await refresh(); } catch (e) { msg.textContent = 'Could not remove: ' + (e.message || ''); x.disabled = false; } };
+      row.appendChild(x); wrap.appendChild(row);
+    });
+    const candidates = wsMembers.filter(m => !inSet.has(m.user_id));
+    if (candidates.length) {
+      const addRow = document.createElement('div'); addRow.style.cssText = 'display:flex;gap:6px;margin-top:4px';
+      const sel = document.createElement('select'); sel.style.cssText = 'flex:1;padding:6px;border:1px solid var(--line,#E8E2D4);border-radius:6px;font:inherit';
+      candidates.forEach(m => { const o = document.createElement('option'); o.value = m.user_id; o.textContent = m.email || m.user_id; sel.appendChild(o); });
+      const ab = document.createElement('button'); ab.className = 'btn btn-secondary'; ab.textContent = 'Add'; ab.style.cssText = 'padding:6px 10px';
+      ab.onclick = async () => { ab.disabled = true; try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/groups/' + encodeURIComponent(g.id) + '/members', { method: 'POST', body: JSON.stringify({ user_id: sel.value }) }); await refresh(); } catch (e) { msg.textContent = 'Could not add: ' + (e.message || ''); ab.disabled = false; } };
+      addRow.appendChild(sel); addRow.appendChild(ab); wrap.appendChild(addRow);
+    }
+  }
+  async function refresh() {
+    listWrap.innerHTML = '';
+    let groups = [];
+    try {
+      groups = (await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/groups')).groups || [];
+      if (!wsMembers.length) wsMembers = (await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/members')).members || [];
+    } catch (e) { msg.textContent = 'Could not load groups.'; return; }
+    if (!groups.length) { listWrap.appendChild(Object.assign(document.createElement('p'), { className: 'section-meta', textContent: 'No groups yet. Create one below.' })); return; }
+    groups.forEach(g => {
+      const block = document.createElement('div'); block.style.cssText = 'border-top:1px solid var(--line,#E8E2D4);padding:10px 0';
+      const head = document.createElement('div'); head.style.cssText = 'display:flex;align-items:center;gap:8px';
+      const nm = document.createElement('span'); nm.className = 'ws-memail'; nm.style.fontWeight = '600'; nm.textContent = g.name; head.appendChild(nm);
+      head.appendChild(Object.assign(document.createElement('span'), { className: 'ws-role', textContent: g.member_count + ' member' + (g.member_count !== 1 ? 's' : '') }));
+      const del = document.createElement('button'); del.className = 'ws-x'; del.textContent = '×'; del.title = 'Delete group';
+      del.onclick = async () => { del.disabled = true; try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/groups/' + encodeURIComponent(g.id), { method: 'DELETE' }); await refresh(); } catch (e) { msg.textContent = 'Could not delete: ' + (e.message || ''); del.disabled = false; } };
+      head.appendChild(del); block.appendChild(head);
+      const memberWrap = document.createElement('div'); memberWrap.style.cssText = 'margin-top:6px'; block.appendChild(memberWrap);
+      loadGroupMembers(g, memberWrap);
+      listWrap.appendChild(block);
+    });
+  }
+  await refresh();
+}
+
+async function openWorkspaceManage(ws) {
+  ensureWsStyles();
+  const canManage = ws.role === 'owner' || ws.role === 'admin';
+  const overlay = document.createElement('div'); overlay.className = 'ws-overlay';
+  const modal = document.createElement('div'); modal.className = 'ws-modal';
+  overlay.appendChild(modal);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  const h = document.createElement('h3'); h.textContent = ws.name; modal.appendChild(h);
+  const sub = document.createElement('p'); sub.className = 'section-meta'; sub.textContent = 'Your role: ' + ws.role; modal.appendChild(sub);
+  if (canManage) {
+    const gb = document.createElement('button'); gb.className = 'btn btn-secondary'; gb.textContent = 'Manage groups'; gb.style.cssText = 'margin-bottom:10px';
+    gb.onclick = () => openGroupsModal(ws);
+    modal.appendChild(gb);
+  }
+  const listWrap = document.createElement('div'); modal.appendChild(listWrap);
+  const msg = document.createElement('p'); msg.className = 'ws-msg2'; modal.appendChild(msg);
+
+  if (canManage) {
+    const add = document.createElement('div'); add.className = 'ws-add';
+    const email = document.createElement('input'); email.type = 'email'; email.placeholder = 'teammate@email.com'; email.autocomplete = 'off';
+    const role = document.createElement('select');
+    [['member', 'Member'], ['admin', 'Admin']].forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; role.appendChild(o); });
+    const addBtn = document.createElement('button'); addBtn.className = 'btn btn-primary'; addBtn.textContent = 'Add';
+    addBtn.onclick = async () => {
+      const addr = (email.value || '').trim();
+      if (!addr) { msg.textContent = 'Enter an email.'; return; }
+      addBtn.disabled = true; msg.textContent = '';
+      try {
+        const r = await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/members', { method: 'POST', body: JSON.stringify({ email: addr, role: role.value }) });
+        msg.textContent = r.mode === 'invited' ? ('Invitation sent to ' + addr + '.') : ('Added ' + addr + '.');
+        email.value = ''; await refresh();
+      } catch (e) { msg.textContent = 'Could not add: ' + (e.message || ''); }
+      finally { addBtn.disabled = false; }
+    };
+    add.appendChild(email); add.appendChild(role); add.appendChild(addBtn);
+    modal.appendChild(add);
+  }
+
+  const foot = document.createElement('div'); foot.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px';
+  if (ws.role === 'owner') {
+    const del = document.createElement('button'); del.className = 'btn btn-danger'; del.textContent = 'Delete workspace';
+    del.onclick = async () => {
+      if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Click again to confirm'; return; }
+      del.disabled = true;
+      try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id), { method: 'DELETE' }); close(); loadWorkspaces(); }
+      catch (e) { msg.textContent = 'Could not delete: ' + (e.message || ''); del.disabled = false; del.textContent = 'Delete workspace'; del.dataset.armed = ''; }
+    };
+    foot.appendChild(del);
+  } else {
+    foot.appendChild(document.createElement('span'));
+  }
+  const doneBtn = document.createElement('button'); doneBtn.className = 'btn btn-secondary'; doneBtn.textContent = 'Done';
+  doneBtn.onclick = () => { close(); loadWorkspaces(); };
+  foot.appendChild(doneBtn); modal.appendChild(foot);
+  document.body.appendChild(overlay);
+
+  async function refresh() {
+    listWrap.innerHTML = '';
+    let data;
+    try { data = await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/members'); }
+    catch (e) { msg.textContent = 'Could not load members: ' + (e.message || ''); return; }
+    const ul = document.createElement('ul'); ul.className = 'ws-mlist';
+    (data.members || []).forEach(m => {
+      const li = document.createElement('li');
+      const em = document.createElement('span'); em.className = 'ws-memail'; em.textContent = m.email || '(unknown)'; li.appendChild(em);
+      const r = document.createElement('span'); r.className = 'ws-role'; r.textContent = m.role; li.appendChild(r);
+      if (data.can_manage && m.role !== 'owner') {
+        const x = document.createElement('button'); x.className = 'ws-x'; x.textContent = '×'; x.title = 'Remove';
+        x.onclick = async () => {
+          x.disabled = true;
+          try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/members/' + encodeURIComponent(m.user_id), { method: 'DELETE' }); await refresh(); }
+          catch (e) { msg.textContent = 'Could not remove: ' + (e.message || ''); x.disabled = false; }
+        };
+        li.appendChild(x);
+      }
+      ul.appendChild(li);
+    });
+    listWrap.appendChild(ul);
+    if ((data.pending || []).length) {
+      listWrap.appendChild(Object.assign(document.createElement('p'), { className: 'ws-section-label', textContent: 'Pending invitations' }));
+      const pul = document.createElement('ul'); pul.className = 'ws-mlist';
+      data.pending.forEach(p => {
+        const li = document.createElement('li');
+        const em = document.createElement('span'); em.className = 'ws-memail'; em.textContent = p.email; li.appendChild(em);
+        const tag = document.createElement('span'); tag.className = 'ws-pending'; tag.textContent = 'pending'; li.appendChild(tag);
+        if (data.can_manage) {
+          const x = document.createElement('button'); x.className = 'ws-x'; x.textContent = '×'; x.title = 'Cancel invitation';
+          x.onclick = async () => {
+            x.disabled = true;
+            try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/invitations/' + encodeURIComponent(p.invitation_id), { method: 'DELETE' }); await refresh(); }
+            catch (e) { msg.textContent = 'Could not cancel: ' + (e.message || ''); x.disabled = false; }
+          };
+          li.appendChild(x);
+        }
+        pul.appendChild(li);
+      });
+      listWrap.appendChild(pul);
+    }
+
+    // Workspace items (contributed knowledge), read-only.
+    try {
+      const items = (await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/items')).items || [];
+      listWrap.appendChild(Object.assign(document.createElement('p'), { className: 'ws-section-label', textContent: 'Shared items (' + items.length + ')' }));
+      if (!items.length) {
+        listWrap.appendChild(Object.assign(document.createElement('p'), { className: 'section-meta', textContent: 'No items contributed yet. Contribute from your library.' }));
+      } else {
+        const iul = document.createElement('ul'); iul.className = 'ws-mlist';
+        items.forEach(it => {
+          const li = document.createElement('li');
+          li.appendChild(Object.assign(document.createElement('span'), { className: 'ws-memail', textContent: it.title || 'Untitled' }));
+          li.appendChild(Object.assign(document.createElement('span'), { className: 'ws-role', textContent: it.type }));
+          if (ws.role === 'owner' || ws.role === 'admin') {
+            const gb = document.createElement('button'); gb.className = 'ws-x'; gb.textContent = '🔒'; gb.title = 'Restrict this item to groups';
+            gb.onclick = () => openItemRestrictModal(ws, it);
+            li.appendChild(gb);
+          }
+          iul.appendChild(li);
+        });
+        listWrap.appendChild(iul);
+      }
+    } catch (e) { /* non-fatal */ }
+  }
+
+  await refresh();
+}
+
+document.getElementById('ws-create-btn')?.addEventListener('click', async () => {
+  const input = document.getElementById('ws-new-name');
+  const msg = document.getElementById('ws-msg');
+  const name = (input.value || '').trim();
+  if (!name) { msg.textContent = 'Enter a workspace name.'; return; }
+  const btn = document.getElementById('ws-create-btn');
+  btn.disabled = true; msg.textContent = '';
+  try {
+    await wsFetch('/api/workspaces', { method: 'POST', body: JSON.stringify({ name }) });
+    input.value = ''; msg.textContent = 'Workspace created.';
+    await loadWorkspaces();
+  } catch (e) { msg.textContent = 'Could not create: ' + (e.message || ''); }
+  finally { btn.disabled = false; }
 });
 
 // ── Boot ─────────────────────────────────────────────────────────────────────

@@ -19,7 +19,7 @@ import { methodGuard }                         from '../../lib/twin-api.js';
 import { requireTenant }                        from '../../lib/anon.js';
 import { logAudit }                             from '../../lib/audit.js';
 import { checkAndIncrementCap, capExceededBody } from '../../lib/caps.js';
-import { searchTwin, searchForCreation }        from '../../tools/retrieval.js';
+import { searchTwin, searchForCreation, getDocument } from '../../tools/retrieval.js';
 import { listRecent }                           from '../../tools/management.js';
 import { bulkContribute }                       from '../../tools/workspaces.js';
 import { streamTwin, callFastJson }             from '../../lib/anthropic.js';
@@ -33,6 +33,35 @@ const RETRIEVAL_K = 6;
 // "from a few months back" vs "a year ago". See spec §4.3.
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
+}
+
+// ── Whole-document retrieval for the (non-agentic) chat router ────────────────
+// This router pre-fetches context rather than letting the model call tools, so a
+// "summarise the WHOLE brief" question would otherwise get a handful of top-k
+// chunks (possibly out of order, possibly incomplete). When the user clearly
+// wants the entire document and the top hit belongs to a stored one, expand it
+// via get_document so the answer reflects the complete text in document order.
+// Guarded + size-capped; any miss falls back to the normal top-k context.
+const WHOLE_DOC_INTENT_RE = /\b(whole|entire|full|complete|all of|the actual|in full|verbatim|start to finish)\b/i;
+const DOC_NOUN_RE         = /\b(document|doc|brief|file|report|paper|deck|transcript|handover|memo|essay|article|notes?)\b/i;
+const WHOLE_DOC_MAX_CHARS = 40000;   // ~10k tokens; keeps the whole-doc inject within budget
+
+async function maybeWholeDocumentBlock(ctx, query, results) {
+  try {
+    if (!WHOLE_DOC_INTENT_RE.test(query) || !DOC_NOUN_RE.test(query)) return '';
+    const hit = (results || []).find(r => r.document_id);   // top-ranked result that belongs to a document
+    if (!hit) return '';
+    const doc = await getDocument(ctx, { document_id: hit.document_id });
+    let body = doc?.found ? (doc.reassembled || '') : '';
+    if (!body) return '';
+    let truncated = false;
+    if (body.length > WHOLE_DOC_MAX_CHARS) { body = body.slice(0, WHOLE_DOC_MAX_CHARS); truncated = true; }
+    const title = String(doc.title || '').replace(/"/g, '');
+    return `<whole_document title="${title}" parts="${doc.part_count}"${truncated ? ' truncated="true"' : ''}>\n${body}\n</whole_document>\n\n`;
+  } catch (err) {
+    console.error('[turn] whole-document expand failed:', err?.message);
+    return '';
+  }
 }
 
 // ── Voice + behaviour brief for the chat surface ─────────────────────────────
@@ -402,6 +431,10 @@ function buildKnowledgeBlock(items, tagName = 'untrusted_knowledge') {
   if (!items?.length) return '';
   const body = items.map((r, i) => {
     const provenance = r.provenance || 'personal';
+    // Canon (the Eleusis seed) is the product's content, attributed to Eleusis —
+    // never the user's own note or thinking.
+    const isCanon   = r.canon === true || provenance === 'canon';
+    const provLabel = isCanon ? 'Eleusis' : provenance;
 
     if (r.is_living_document) {
       // Living documents get staleness framing, not regular temporal framing.
@@ -413,7 +446,7 @@ function buildKnowledgeBlock(items, tagName = 'untrusted_knowledge') {
         `Summary: ${r.summary || r.content?.slice(0, 200) || ''}`,
         `Source: ${r.source_ref}`,
         `Updated: ${r.updated_at || r.created_at}`,
-        `Provenance: ${provenance}`,
+        `Provenance: ${provLabel}`,
       ].filter(Boolean).join('\n');
     }
 
@@ -424,36 +457,46 @@ function buildKnowledgeBlock(items, tagName = 'untrusted_knowledge') {
       `Summary: ${r.summary || r.content?.slice(0, 200) || ''}`,
       `Source: ${r.source_ref}`,
       `Added: ${r.created_at}${age ? ` (${age})` : ''}`,
-      `Provenance: ${provenance}`,
+      `Provenance: ${provLabel}`,
       // Phase 1: items someone else shared with the user (can_use+). Flagged so
       // the model attributes them as shared, never as the user's own thinking.
       r.shared ? `Shared with you by another person (${r.access_level || 'can_use'})` : '',
       r.workspace ? 'From a shared workspace library (organisational content, not your personal thinking). Attribute it to the workspace, never as your own.' : '',
+      // Canon: the Eleusis seed — what this twin is and what it believes. Product
+      // content, not the user's note. Attribute it to Eleusis, never as the user's own.
+      isCanon ? 'From Eleusis — canon about what this twin is and what it believes, not the user\'s own note. Attribute it to Eleusis, never as the user\'s own thinking.' : '',
     ].filter(Boolean).join('\n');
   }).join('\n\n---\n\n');
   return `<${tagName}>\n${body}\n</${tagName}>\n\n`;
 }
 
 function citationsFor(items) {
-  return items.map((r, i) => ({
-    id:           r.id,
-    item_id:      r.id,    // frontend renderCitations looks for item_id
-    index:        i + 1,   // [1] in model output matches index 1 here
-    type:         r.type,
-    title:        r.title,
-    display_ref:  r.display_ref,
-    source_ref:   r.source_ref,
-    provenance:   r.provenance || 'personal',
-    created_at:   r.created_at,
-    short_date:   shortDate(r.created_at),
-    relative_age: relativeAge(r.created_at),
-    relevance:    r.relevance,
-    // Phase 1 sharing: true when this item was shared with the user by someone
-    // else. The frontend renders a "shared" badge (Sub-phase 4).
-    shared:       r.shared || false,
-    ...(r.shared ? { access_level: r.access_level || 'can_use' } : {}),
-    ...(r.workspace ? { workspace: true, workspace_id: r.workspace_id } : {}),
-  }));
+  return items.map((r, i) => {
+    // Canon is the Eleusis seed, not a user library item: drop the deep-link so
+    // the inline [n] marker is stripped (renderCitations skips citations without
+    // item_id). The prose still attributes it to Eleusis (see buildKnowledgeBlock).
+    const isCanon = r.canon === true || r.provenance === 'canon';
+    return {
+      id:           r.id,
+      item_id:      isCanon ? null : r.id,   // frontend renderCitations looks for item_id
+      index:        i + 1,   // [1] in model output matches index 1 here
+      type:         r.type,
+      title:        r.title,
+      display_ref:  r.display_ref,
+      source_ref:   r.source_ref,
+      provenance:   r.provenance || 'personal',
+      created_at:   r.created_at,
+      short_date:   shortDate(r.created_at),
+      relative_age: relativeAge(r.created_at),
+      relevance:    r.relevance,
+      // Phase 1 sharing: true when this item was shared with the user by someone
+      // else. The frontend renders a "shared" badge (Sub-phase 4).
+      shared:       r.shared || false,
+      ...(r.shared ? { access_level: r.access_level || 'can_use' } : {}),
+      ...(r.workspace ? { workspace: true, workspace_id: r.workspace_id } : {}),
+      ...(isCanon ? { canon: true } : {}),
+    };
+  });
 }
 
 // ── Built-in spells (spec §8) ─────────────────────────────────────────────────
@@ -732,6 +775,7 @@ export default async function handler(req, res) {
     let conceptCtx = '';
     let driftLog = null;
     let skillProposal = null;
+    let wholeDocBlock = '';
 
     // Run retrieval, concept-page context, and drift check in parallel.
     // Drift check is a cheap DB read — non-fatal if it fails.
@@ -772,11 +816,13 @@ export default async function handler(req, res) {
       knowledgeItems = search.results || [];
       conceptCtx     = ctxResult;
       driftLog       = drift;
+      // Expand to the whole document when the user asked for it (see helper).
+      wholeDocBlock  = await maybeWholeDocumentBlock(ctx, querySeed, search.results);
     }
 
-    // Concept pages come first — they are meta-level context that frames the
-    // raw knowledge blocks that follow.
-    let contextBlock = conceptCtx;
+    // Whole-document expansion (when requested) leads, then concept pages —
+    // meta-level context that frames the raw knowledge blocks that follow.
+    let contextBlock = wholeDocBlock + conceptCtx;
     if (mode === 'creation') {
       contextBlock += buildKnowledgeBlock(skillItems,     'skills_bucket');
       contextBlock += buildKnowledgeBlock(knowledgeItems, 'knowledge_bucket');

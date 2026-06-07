@@ -15,6 +15,26 @@ import { callFastJson } from '../../lib/anthropic.js';
 import { embed } from '../../lib/embed.js';
 import { getNamespace } from '../../lib/pinecone.js';
 import { getDB } from '../../lib/supabase.js';
+import { chunkText } from '../../tools/storage.js';
+import { hashDocument } from '../../lib/content-hash.js';
+
+// Idempotency preview: has this exact document (same tenant) already been
+// ingested? Returns minimal metadata so the proposal card can offer "already in
+// your twin, replace it?". Resilient: pre-030 (no content_hash column) or any
+// error returns null, so the preview simply doesn't show — confirm-time still
+// enforces idempotency.
+async function lookupExistingDocument(tenantId, contentHash) {
+  if (!contentHash) return null;
+  try {
+    const { data, error } = await getDB()
+      .from('sources')
+      .select('id, reference, ingested_at')
+      .eq('tenant_id', tenantId).eq('content_hash', contentHash)
+      .order('ingested_at', { ascending: true }).limit(1).maybeSingle();
+    if (error) return null;
+    return data ? { source_id: data.id, reference: data.reference, ingested_at: data.ingested_at } : null;
+  } catch { return null; }
+}
 
 const SYSTEM_PROMPT = `You are previewing a document the user just uploaded to MyAITwin. Build a structured record preview so they can confirm or cancel before anything is stored.
 
@@ -157,6 +177,16 @@ export default async function handler(req, res) {
       const llmType       = data.knowledge_type === 'skill' ? 'skill' : 'knowledge';
       const knowledge_type = hasSkillSignal(filename) ? 'skill' : llmType;
 
+      // Real chunk plan — the honest count the store card shows, NOT the LLM
+      // estimate. Deterministic and cheap (no LLM); mirrors addDocument exactly.
+      const chunk_count = knowledge_type === 'skill'
+        ? 1
+        : chunkText(content, 2500, 100).length;
+
+      // Idempotency preview: is this exact document already in the twin?
+      const content_hash  = hashDocument(content, ctx.tenantId);
+      const already_exists = await lookupExistingDocument(ctx.tenantId, content_hash);
+
       return {
         kind: 'document-proposal',
         proposal: {
@@ -167,6 +197,9 @@ export default async function handler(req, res) {
           provenance:       data.provenance || 'personal',
           summary:          data.summary,
           estimated_blocks: data.estimated_blocks || 1,
+          chunk_count,                 // real stored-part count (honest store card)
+          content_hash,                // lets confirm reuse without recompute
+          ...(already_exists ? { already_exists } : {}),
           connections,
           // The whole content is sent through so confirm-document can store
           // without a second round-trip. It's not user-visible (only the

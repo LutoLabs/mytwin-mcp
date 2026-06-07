@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Home · MyAITwin</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,400&family=Spline+Sans+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ──────────────────────────────────────────────────────────────────────────
+   home-next — the calm "complete home" preview. Additive page, not in nav.
+   Two native Luto skins: light = cream onboarding palette; dark = the
+   hypergraph app theme. Switched by prefers-color-scheme + a header toggle.
+   Value is shown as abundance, never as demand (the one design rule).
+   ────────────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Light = Luto cream onboarding surface (account.html / create.html tokens) */
+  --bg:        #FDFCFA;
+  --hero-bg:   #F9F8F4;
+  --panel:     #FFFFFF;
+  --line:      #E8E2D4;
+  --ink:       #0F0E0D;
+  --dim:       #857C6E;
+  --dim-2:     #A89E8C;
+  --amber:     #FFE34A;
+  --amber-deep:#EAB400;
+  --shadow:    rgba(15,14,13,0.07);
+  /* hero node fallbacks (cream-muted) — domain colours remapped in JS */
+  --edge:      rgba(120,112,96,0.28);
+}
+html[data-theme="dark"] {
+  /* Dark = the hypergraph app theme (profile.html / twin.html tokens) */
+  --bg:        #05060e;
+  --hero-bg:   #080a16;
+  --panel:     rgba(9,11,24,0.92);
+  --line:      rgba(150,160,220,0.18);
+  --ink:       #eef0ff;
+  --dim:       #666e9a;
+  --dim-2:     #8088bb;
+  --amber:     #FFD400;
+  --amber-deep:#FFD400;
+  --shadow:    rgba(0,0,0,0.4);
+  --edge:      rgba(150,160,220,0.22);
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Spline Sans Mono', ui-monospace, monospace;
+  font-size: 14px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100%;
+  transition: background 240ms ease, color 240ms ease;
+}
+a { color: inherit; text-decoration: none; }
+button, input { font-family: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: none; }
+[hidden] { display: none !important; }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--dim-2); outline-offset: 2px; }
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+header.site-header {
+  position: sticky; top: 0; z-index: 30;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(10px);
+}
+.header-inner {
+  max-width: 1040px; margin: 0 auto; padding: 14px 32px;
+  display: flex; align-items: center; gap: 16px;
+}
+.logo { display: flex; align-items: center; gap: 9px; }
+.logo-mark { position: relative; width: 22px; height: 22px; flex-shrink: 0; }
+.logo-mark::before { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 3px; background: var(--ink); opacity: 0.35; }
+.logo-mark::after  { content: ''; position: absolute; top: 0; left: 0; width: 20px; height: 20px; border-radius: 3px; background: var(--amber); border: 1.5px solid color-mix(in srgb, var(--ink) 60%, transparent); }
+.logo-text { display: flex; flex-direction: column; gap: 1px; }
+.logo-name { font-family: 'Fraunces', Georgia, serif; font-size: 1.05rem; font-weight: 400; letter-spacing: -0.01em; line-height: 1.1; }
+.logo-by   { font-size: 7px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.2em; color: var(--dim); line-height: 1; }
+.header-spacer { flex: 1; }
+.theme-toggle {
+  width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center; color: var(--dim);
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--dim-2); }
+
+/* ── Page shell ────────────────────────────────────────────────────────── */
+main { max-width: 1040px; margin: 0 auto; padding: 0 32px 96px; }
+
+/* Greeting — its own row, ABOVE the graph (never overlaid). */
+.greeting { padding: 56px 0 28px; }
+.greeting h1 {
+  font-family: 'Fraunces', Georgia, serif; font-weight: 300;
+  font-size: clamp(1.9rem, 4vw, 2.9rem); letter-spacing: -0.02em; line-height: 1.08;
+}
+.greeting .sub {
+  margin-top: 14px; font-size: 12.5px; letter-spacing: 0.04em; color: var(--dim);
+}
+.greeting .sub b { font-weight: 500; color: var(--ink); }
+
+/* Hero band — its own clean band. Animated graph mounts into #mind-hero (Phase 3). */
+.hero-band {
+  position: relative; width: 100%; height: 46vh; min-height: 320px;
+  border-radius: 16px; overflow: hidden;
+  border: 1px solid var(--line); background:
+    radial-gradient(ellipse 90% 90% at 50% 42%, color-mix(in srgb, var(--amber) 9%, transparent) 0%, transparent 62%),
+    var(--hero-bg);
+}
+#mind-hero { position: absolute; inset: 0; }
+#mind-hero svg { display: block; width: 100%; height: 100%; }
+.hero-caption {
+  text-align: center; margin: 16px 0 4px;
+  font-family: 'Fraunces', Georgia, serif; font-style: italic; font-weight: 400;
+  font-size: 14px; color: var(--dim);
+}
+
+/* Capture bar — calm invitation. Routes to the existing /twin capture surface. */
+.capture {
+  margin: 30px 0 8px; display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--panel);
+  box-shadow: 0 1px 0 var(--shadow);
+  transition: border-color 140ms, box-shadow 140ms;
+}
+.capture:hover { border-color: var(--dim-2); }
+.capture input {
+  flex: 1; border: none; background: none; outline: none;
+  font-size: 14px; color: var(--ink);
+}
+.capture input::placeholder { color: var(--dim-2); }
+.capture .mic {
+  width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--dim); border: 1px solid var(--line);
+}
+.capture .mic:hover { color: var(--ink); border-color: var(--dim-2); }
+.capture-hint { margin: 8px 4px 0; font-size: 11px; letter-spacing: 0.04em; color: var(--dim-2); }
+.ghost-label { font-family: 'Spline Sans Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: 0.18em; fill: var(--dim-2); }
+
+/* Serendipity line (Phase 4) */
+.serendipity {
+  display: flex; align-items: center; gap: 10px; margin: 22px 2px 2px;
+  font-family: 'Fraunces', Georgia, serif; font-style: italic; font-size: 14px; color: var(--dim);
+}
+.serendipity .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber-deep); flex-shrink: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--amber) 22%, transparent); }
+.serendipity .spacer { flex: 1; }
+.serendipity .thread { font-family: 'Spline Sans Mono', monospace; font-style: normal; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); }
+.serendipity .thread:hover { color: var(--ink); }
+
+/* Rooms grid */
+.rooms { margin-top: 40px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.room {
+  display: block; padding: 22px 22px 24px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--panel);
+  box-shadow: 0 1px 0 var(--shadow);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.room:hover { transform: translateY(-2px); border-color: var(--dim-2); box-shadow: 0 6px 18px var(--shadow); }
+.room .ico { font-size: 18px; line-height: 1; margin-bottom: 14px; opacity: 0.9; }
+.room .name { font-family: 'Fraunces', Georgia, serif; font-size: 1.15rem; font-weight: 400; letter-spacing: -0.01em; }
+.room .val { margin-top: 6px; font-size: 12px; color: var(--dim); letter-spacing: 0.02em; }
+.room.cold { border-style: dashed; background: transparent; }
+.room.warm { border-color: var(--amber-deep); box-shadow: 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent); }
+
+/* Whisper (Phase 4) — the only "waiting" affordance: faint, count-less. */
+.whisper {
+  margin-top: 64px; text-align: center;
+  font-size: 11.5px; letter-spacing: 0.06em; color: var(--dim-2);
+}
+.whisper a { color: var(--dim-2); }
+.whisper a:hover { color: var(--dim); }
+
+/* Loading / states */
+.skeleton { color: transparent; position: relative; }
+#page-error {
+  max-width: 1040px; margin: 0 auto; padding: 80px 32px; text-align: center; color: var(--dim);
+  font-family: 'Fraunces', Georgia, serif; font-style: italic; font-size: 16px;
+}
+
+@media (max-width: 760px) {
+  .header-inner, main { padding-left: 20px; padding-right: 20px; }
+  .rooms { grid-template-columns: 1fr; }
+  .greeting { padding-top: 36px; }
+  .hero-band { height: 38vh; min-height: 260px; }
+}
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="header-inner">
+    <a class="logo" href="/twin/home-next" aria-label="MyAITwin home">
+      <span class="logo-mark"></span>
+      <span class="logo-text">
+        <span class="logo-name">MyAITwin</span>
+        <span class="logo-by">BY LUTO</span>
+      </span>
+    </a>
+    <span class="header-spacer"></span>
+    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light or dark" title="Toggle theme">
+      <svg id="theme-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></svg>
+    </button>
+  </div>
+</header>
+
+<main id="page" hidden>
+  <!-- Greeting (own row, above the graph) -->
+  <section class="greeting">
+    <h1 id="greeting-line">&nbsp;</h1>
+    <div class="sub" id="greeting-sub">&nbsp;</div>
+  </section>
+
+  <!-- Hero band (animated graph mounts in Phase 3; static placeholder for now) -->
+  <section class="hero-band"><div id="mind-hero"></div></section>
+  <div class="hero-caption" id="hero-caption">your mind, today — alive and quietly connecting</div>
+
+  <!-- Capture bar -->
+  <a class="capture" id="capture-bar" href="/twin" aria-label="Capture a thought">
+    <input id="capture-input" placeholder="What's on your mind?" readonly>
+    <span class="mic" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+    </span>
+  </a>
+  <div class="capture-hint" id="capture-hint" hidden>just start talking — one thought wakes it up</div>
+
+  <!-- Serendipity line (Phase 4) -->
+  <div class="serendipity" id="serendipity" hidden>
+    <span class="dot"></span>
+    <span id="serendipity-text"></span>
+    <span class="spacer"></span>
+    <a class="thread" id="serendipity-thread" href="#">see the thread ›</a>
+  </div>
+
+  <!-- Rooms grid -->
+  <section class="rooms" id="rooms"></section>
+
+  <!-- Whisper (Phase 4) -->
+  <div class="whisper" id="whisper" hidden>
+    <a id="whisper-link" href="/twin">a few things are waiting, whenever you're ready ›</a>
+  </div>
+</main>
+
+<div id="page-error" hidden>this page lives inside your twin. <a href="/twin" style="text-decoration:underline">open your twin ›</a></div>
+
+<script>
+(function () {
+  'use strict';
+  var COLD_START_THRESHOLD = 5;
+  var SKILL_TYPES = ['voice', 'template', 'method']; // method -> Skills (a way you turn thinking into output)
+  var HERO_MAX_NODES = 32;   // sample for calm + performance; never animate all 69
+  var heroHandle = null;     // set once the hero mounts; recoloured on theme toggle
+
+  // ── Theme: prefers-color-scheme + persisted toggle ────────────────────────
+  var ICON_SUN  = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+  var ICON_MOON = '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>';
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    document.getElementById('theme-icon').innerHTML = (t === 'dark') ? ICON_SUN : ICON_MOON;
+  }
+  var saved = null;
+  try { saved = localStorage.getItem('homeNextTheme'); } catch (e) {}
+  var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(saved || (prefersDark ? 'dark' : 'light'));
+  document.getElementById('theme-toggle').addEventListener('click', function () {
+    var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    if (heroHandle) heroHandle.recolor(next);
+    try { localStorage.setItem('homeNextTheme', next); } catch (e) {}
+  });
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+  function getJSON(url) {
+    return fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); });
+  }
+  function firstName(name, email) {
+    if (name && name.trim()) return name.trim().split(/\s+/)[0];
+    if (email) return email.split('@')[0].split(/[.\-_]/)[0].replace(/^\w/, function (c) { return c.toUpperCase(); });
+    return 'there';
+  }
+  function greetWord() {
+    var h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function n(x) { return (typeof x === 'number' && isFinite(x)) ? x : 0; }
+
+  // ── Rooms (abundance framing; value lines from real data) ──────────────────
+  function renderRooms(d) {
+    var cold = d.cold;
+    var rooms = [
+      { ico: '◇', name: 'Concepts', href: '/twin/library',
+        val: cold ? 'empty, and ready for you' : (n(d.conceptCount) + ' ideas, rewriting themselves') },
+      { ico: '❋', name: 'Library', href: '/twin/library',
+        val: cold ? 'your first writes itself soon' : (n(d.itemCount) + ' thoughts, all connected') },
+      { ico: '⟡', name: 'Skills', href: '/twin/library',
+        val: cold ? 'the craft you bring' : (n(d.skillCount) + ' ways you turn thinking into output') },
+      { ico: '✶', name: 'Ask your twin', href: '/twin',
+        val: 'answers from all you know' },
+      { ico: '◗', name: 'Voice', href: '/twin', warm: cold,
+        val: cold ? 'the easiest way to start →' : 'think out loud, anytime' },
+      { ico: '⬡', name: 'Shared with you', href: '/twin/library',
+        val: n(d.sharedCount) + ' brain' + (n(d.sharedCount) === 1 ? '' : 's') + ' shared with you',
+        hide: n(d.sharedCount) === 0 }   // a sad zero reads as demand; hide until a brain is shared
+    ];
+    var html = rooms.filter(function (r) { return !r.hide; }).map(function (r) {
+      var cls = 'room' + (cold ? ' cold' : '') + (r.warm ? ' warm' : '');
+      return '<a class="' + cls + '" href="' + r.href + '">' +
+        '<div class="ico">' + r.ico + '</div>' +
+        '<div class="name">' + esc(r.name) + '</div>' +
+        '<div class="val">' + esc(r.val) + '</div></a>';
+    }).join('');
+    document.getElementById('rooms').innerHTML = html;
+  }
+
+  function renderGreeting(d) {
+    var nameEl = document.getElementById('greeting-line');
+    var subEl = document.getElementById('greeting-sub');
+    if (d.cold) {
+      nameEl.textContent = 'Hello, ' + d.firstName + '.';
+      subEl.innerHTML = "Let's wake your twin up — it learns how you think, then thinks alongside you.";
+      document.getElementById('hero-caption').textContent = 'this becomes a map of how you think';
+      document.getElementById('capture-input').setAttribute('placeholder', "What've you been thinking about lately?");
+    } else {
+      nameEl.textContent = greetWord() + ', ' + d.firstName + '.';
+      subEl.innerHTML = '<b>' + n(d.itemCount) + '</b> thoughts · <b>' + n(d.conceptCount) +
+        '</b> living ideas · quietly growing';
+    }
+  }
+
+  // ── Load: bootstrap identity, then real data in parallel ───────────────────
+  getJSON('/api/auth/session').then(function (s) {
+    if (!s || !s.is_authenticated) { showError(); return; }
+
+    return Promise.all([
+      getJSON('/api/profile').catch(function () { return null; }),
+      getJSON('/api/library/stats').catch(function () { return null; }),
+      getJSON('/api/library/concepts').catch(function () { return null; }),
+      getJSON('/api/workspaces').catch(function () { return null; }),
+      getJSON('/api/twin/serendipity').catch(function () { return null; }),
+      getJSON('/api/twin/review-presence').catch(function () { return null; })
+    ]).then(function (res) {
+      var profile = res[0], stats = res[1], concepts = res[2], workspaces = res[3];
+      var serendipity = res[4], presence = res[5];
+
+      var itemCount = (stats && typeof stats.totalItems === 'number') ? stats.totalItems
+                    : (profile && profile.stats ? profile.stats.items : 0);
+      var conceptCount = concepts ? n(concepts.total)
+                       : (profile && profile.stats ? profile.stats.concept_pages : 0);
+
+      var byType = (stats && stats.itemsByType) || {};
+      var skillCount = SKILL_TYPES.reduce(function (a, t) { return a + n(byType[t]); }, 0);
+
+      // "shared with you" = workspaces the viewer is in but does not own.
+      var myId = s.user_id;
+      var sharedCount = Array.isArray(workspaces)
+        ? workspaces.filter(function (w) { return w && (w.owner_id ? w.owner_id !== myId : (w.role && w.role !== 'owner')); }).length
+        : 0;
+
+      var d = {
+        firstName: firstName(profile && profile.owner ? profile.owner.name : null, s.email),
+        itemCount: itemCount, conceptCount: conceptCount,
+        skillCount: skillCount, sharedCount: sharedCount,
+        cold: n(itemCount) < COLD_START_THRESHOLD
+      };
+
+      renderGreeting(d);
+      renderRooms(d);
+      document.getElementById('page').hidden = false;
+
+      if (!d.cold) {
+        // Rich home: hero graph + the one gift (serendipity) + the one whisper.
+        mountHero(serendipity);                 // serendipity drives the single amber pulse
+        renderSerendipity(serendipity);
+        renderWhisper(presence);
+      } else {
+        // Cold-start: ghost hero, warm Voice on-ramp, no serendipity, no whisper.
+        renderGhostHero(document.getElementById('mind-hero'), document.documentElement.getAttribute('data-theme'));
+        document.getElementById('capture-hint').hidden = false;
+      }
+    });
+  }).catch(function () { showError(); });
+
+  // ── MindGraphHero — vanilla SVG + rAF constellation from the Profile graph ──
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  function el(name, attrs) { var e = document.createElementNS(SVGNS, name); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+  function hexFromApi(c) { // '0xRRGGBB' -> '#RRGGBB'
+    if (!c) return '#888888';
+    return '#' + String(c).replace(/^0x/i, '').replace(/^#/, '').padStart(6, '0').slice(-6);
+  }
+  function blendToInk(hex, t) { // deepen a bright colour for the cream surface
+    var m = /^#([0-9a-f]{6})$/i.exec(hex); if (!m) return hex;
+    var v = parseInt(m[1], 16), r = (v >> 16) & 255, g = (v >> 8) & 255, b = v & 255;
+    var ir = 15, ig = 14, ib = 13; // ink #0F0E0D
+    r = Math.round(r + (ir - r) * t); g = Math.round(g + (ig - g) * t); b = Math.round(b + (ib - b) * t);
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+  function colorFor(hex, theme) { return theme === 'dark' ? hex : blendToInk(hex, 0.30); }
+
+  // Sample to <=MAX nodes, balanced across domains by degree; reindex surviving
+  // edges. forceIds (original indices) are always included so the serendipity
+  // pulse has both endpoints in the sampled set.
+  function sampleGraph(nodes, edges, domains, MAX, forceIds) {
+    var keys = Object.keys(domains), nodeDomain = {};
+    keys.forEach(function (d) { (domains[d].node_ids || []).forEach(function (idx) { nodeDomain[idx] = d; }); });
+    var perDomain = {}, cursor = {};
+    keys.forEach(function (d) {
+      perDomain[d] = (domains[d].node_ids || []).slice().sort(function (a, b) { return (nodes[b].degree || 0) - (nodes[a].degree || 0); });
+      cursor[d] = 0;
+    });
+    var picked = [], seen = {};
+    (forceIds || []).forEach(function (idx) { if (idx != null && nodes[idx] && !seen[idx]) { picked.push(idx); seen[idx] = 1; } });
+    // advance each domain's cursor past any force-picked node so it isn't doubled
+    keys.forEach(function (d) { perDomain[d] = perDomain[d].filter(function (idx) { return !seen[idx]; }); });
+    while (picked.length < MAX) {
+      var progressed = false;
+      for (var i = 0; i < keys.length && picked.length < MAX; i++) {
+        var d = keys[i];
+        if (cursor[d] < perDomain[d].length) { picked.push(perDomain[d][cursor[d]++]); progressed = true; }
+      }
+      if (!progressed) break;
+    }
+    var pos = {}; picked.forEach(function (idx, i) { pos[idx] = i; });
+    var sNodes = picked.map(function (idx) {
+      return { domain: nodeDomain[idx] || keys[0], degree: nodes[idx].degree || 0, color: hexFromApi(domains[nodeDomain[idx] || keys[0]].color) };
+    });
+    var sEdges = edges.filter(function (e) { return pos[e.i] != null && pos[e.j] != null; })
+                      .map(function (e) { return { a: pos[e.i], b: pos[e.j], strength: e.strength || 1 }; });
+    return { sNodes: sNodes, sEdges: sEdges, keys: keys, posByOrig: pos };
+  }
+
+  function initMindHero(container, data, theme) {
+    var W = 1000, H = 560, CX = 500, CY = 280;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Map serendipity item ids -> original node indices, force-include in sample.
+    var idIndex = {}; data.nodes.forEach(function (n, i) { idIndex[n.id] = i; });
+    var ser = data.serendipity;
+    var origFrom = ser && ser.from ? idIndex[ser.from.id] : null;
+    var origTo   = ser && ser.to   ? idIndex[ser.to.id]   : null;
+    var forceIds = (origFrom != null && origTo != null) ? [origFrom, origTo] : [];
+    var g = sampleGraph(data.nodes, data.edges, data.domains, HERO_MAX_NODES, forceIds);
+    if (!g.sNodes.length) return null;
+
+    // Domain centroids on an ellipse; nodes scattered around their domain centre.
+    var dcenter = {};
+    g.keys.forEach(function (d, i) {
+      var ang = (-Math.PI / 2) + (i / g.keys.length) * Math.PI * 2;
+      dcenter[d] = { x: CX + Math.cos(ang) * 300, y: CY + Math.sin(ang) * 165 };
+    });
+
+    var svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'xMidYMid slice' });
+    svg.setAttribute('aria-hidden', 'true');
+    var gEdges = el('g', {}), gHalos = el('g', {}), gDots = el('g', {});
+    svg.appendChild(gEdges); svg.appendChild(gHalos); svg.appendChild(gDots);
+
+    var nodes = g.sNodes.map(function (n) {
+      var c = dcenter[n.domain], a = (Math.random() * Math.PI * 2), rad = 28 + Math.random() * 64;
+      var bx = c.x + Math.cos(a) * rad, by = c.y + Math.sin(a) * rad * 0.82;
+      var r = 3 + Math.min(n.degree, 6) * 0.7;
+      var fill = colorFor(n.color, theme);
+      var halo = el('circle', { cx: bx, cy: by, r: r * 3.6, fill: fill, opacity: 0.08 });
+      var dot  = el('circle', { cx: bx, cy: by, r: r, fill: fill });
+      gHalos.appendChild(halo); gDots.appendChild(dot);
+      return { bx: bx, by: by, x: bx, y: by, baseColor: n.color, dot: dot, halo: halo,
+               ax: 1.4 + Math.random() * 2.6, ay: 1.1 + Math.random() * 2.2,
+               ph: Math.random() * 6.28, sp: 0.0003 + Math.random() * 0.0004 };
+    });
+
+    var lines = g.sEdges.map(function (e) {
+      var ln = el('line', { x1: nodes[e.a].x, y1: nodes[e.a].y, x2: nodes[e.b].x, y2: nodes[e.b].y, 'stroke-width': 1 });
+      ln.style.stroke = 'var(--edge)';                 // inline var() -> auto-themes
+      gEdges.appendChild(ln);
+      return { a: e.a, b: e.b, el: ln };
+    });
+
+    // One amber accent travelling the serendipity edge (wired in Phase 4).
+    var pulse = el('circle', { r: 4, fill: 'var(--amber-deep)', opacity: 0 });
+    pulse.style.fill = 'var(--amber-deep)';
+    svg.appendChild(pulse);
+    var SER = (forceIds.length === 2) ? [g.posByOrig[origFrom], g.posByOrig[origTo]] : null;
+
+    container.innerHTML = '';
+    container.appendChild(svg);
+
+    var raf = null;
+    function paint(ts) {
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        if (!reduce) { n.x = n.bx + Math.sin(ts * n.sp + n.ph) * n.ax; n.y = n.by + Math.cos(ts * n.sp * 0.9 + n.ph) * n.ay; }
+        n.dot.setAttribute('cx', n.x); n.dot.setAttribute('cy', n.y);
+        n.halo.setAttribute('cx', n.x); n.halo.setAttribute('cy', n.y);
+        n.halo.setAttribute('opacity', (0.05 + 0.07 * (0.5 + 0.5 * Math.sin(ts * 0.0011 + n.ph))).toFixed(3));
+      }
+      for (var j = 0; j < lines.length; j++) {
+        var A = nodes[lines[j].a], B = nodes[lines[j].b];
+        lines[j].el.setAttribute('x1', A.x); lines[j].el.setAttribute('y1', A.y);
+        lines[j].el.setAttribute('x2', B.x); lines[j].el.setAttribute('y2', B.y);
+      }
+      if (!reduce && SER && nodes[SER[0]] && nodes[SER[1]]) {
+        var a = nodes[SER[0]], b = nodes[SER[1]], pr = (ts % 4200) / 4200;
+        pulse.setAttribute('cx', a.x + (b.x - a.x) * pr); pulse.setAttribute('cy', a.y + (b.y - a.y) * pr);
+        pulse.setAttribute('opacity', (0.7 * Math.sin(pr * Math.PI)).toFixed(3));
+      }
+      if (!reduce) raf = requestAnimationFrame(paint);
+    }
+    raf = requestAnimationFrame(paint);   // one frame in reduced-motion = static placement
+
+    return {
+      recolor: function (t) { for (var i = 0; i < nodes.length; i++) { var c = colorFor(nodes[i].baseColor, t); nodes[i].dot.setAttribute('fill', c); nodes[i].halo.setAttribute('fill', c); } },
+      destroy: function () { if (raf) cancelAnimationFrame(raf); container.innerHTML = ''; }
+    };
+  }
+
+  function mountHero(serendipity) {
+    getJSON('/api/profile/hypergraph').then(function (graph) {
+      if (!graph || !graph.nodes || !graph.nodes.length) return;
+      graph.serendipity = serendipity || null;
+      var theme = document.documentElement.getAttribute('data-theme');
+      heroHandle = initMindHero(document.getElementById('mind-hero'), graph, theme);
+    }).catch(function () { /* hero is optional chrome; never block the page */ });
+  }
+
+  // Ghost hero (cold-start): faint hollow nodes in labelled clusters, barely
+  // breathing, no connections yet. Not real data — an invitation placeholder.
+  function renderGhostHero(container, theme) {
+    var W = 1000, H = 560, CX = 500, CY = 270;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var clusters = ['ideas', 'voice', 'decisions', 'taste', 'people'];
+    var svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'xMidYMid slice' });
+    svg.setAttribute('aria-hidden', 'true');
+    var rings = [];
+    clusters.forEach(function (label, i) {
+      var ang = (-Math.PI / 2) + (i / clusters.length) * Math.PI * 2;
+      var cx = CX + Math.cos(ang) * 300, cy = CY + Math.sin(ang) * 150;
+      var count = 3 + Math.floor(Math.random() * 3);
+      for (var k = 0; k < count; k++) {
+        var a = Math.random() * Math.PI * 2, rad = 16 + Math.random() * 52;
+        var x = cx + Math.cos(a) * rad, y = cy + Math.sin(a) * rad * 0.8;
+        var c = el('circle', { cx: x, cy: y, r: 4 + Math.random() * 4, fill: 'none', 'stroke-width': 1.2, opacity: 0.5 });
+        c.style.stroke = 'var(--dim)';
+        svg.appendChild(c);
+        rings.push({ el: c, ph: Math.random() * 6.28 });
+      }
+      var t = el('text', { x: cx, y: cy + 86, 'text-anchor': 'middle' });
+      t.setAttribute('class', 'ghost-label'); t.textContent = label;
+      svg.appendChild(t);
+    });
+    container.innerHTML = ''; container.appendChild(svg);
+    if (reduce) return;
+    var raf;
+    (function breathe(ts) {
+      for (var i = 0; i < rings.length; i++) rings[i].el.setAttribute('opacity', (0.28 + 0.22 * (0.5 + 0.5 * Math.sin(ts * 0.0008 + rings[i].ph))).toFixed(3));
+      raf = requestAnimationFrame(breathe);
+    })(0);
+  }
+
+  // Serendipity line — names a real recent connection; drives the hero pulse.
+  function renderSerendipity(ser) {
+    if (!ser || !ser.from || !ser.to) return;
+    document.getElementById('serendipity-text').textContent = 'while you were away, two of your ideas found each other';
+    var thread = document.getElementById('serendipity-thread');
+    thread.setAttribute('href', '/twin/library');
+    thread.setAttribute('title', ser.from.title + '  ·  ' + ser.to.title);
+    document.getElementById('serendipity').hidden = false;
+  }
+
+  // Whisper — presence only, never a count. The only "waiting" affordance.
+  function renderWhisper(presence) {
+    if (presence && presence.pending) document.getElementById('whisper').hidden = false;
+  }
+
+  function showError() {
+    document.getElementById('page').hidden = true;
+    document.getElementById('page-error').hidden = false;
+  }
+})();
+</script>
+</body>
+</html>

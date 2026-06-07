@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Activation · MyAITwin</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,400&family=Spline+Sans+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ─────────────────────────────────────────────────────────────────────────
+     Activation v2 — IDLE_UNFORMED (Phase 1). Branding + materials mirror the
+     profile hypergraph (public/profile.html): near-black field, glossy lit
+     spheres, Fraunces serif, Spline Sans Mono. Ghosts here are translucent +
+     wireframe-shell, drifting, unconnected — potential, waiting to be made real.
+     ───────────────────────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:     #05060e;
+    --ink:    #eef0ff;
+    --dim:    #8088bb;
+    --dim-2:  #565a82;
+    --yellow: #FFD400;
+    --line:   rgba(150,160,220,0.16);
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--ink);
+    font-family: 'Spline Sans Mono', ui-monospace, monospace; overflow: hidden; }
+  a { color: inherit; text-decoration: none; }
+  button, input { font-family: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+
+  #scene { position: fixed; inset: 0; z-index: 0; }
+  #scene canvas { display: block; cursor: grab; }
+  body.grabbing #scene canvas { cursor: grabbing; }
+
+  /* deep cosmic field: warm vignette over near-black — never a flat void */
+  #vignette { position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      radial-gradient(ellipse 70% 60% at 50% 42%, rgba(40,34,18,0.22) 0%, transparent 55%),
+      radial-gradient(ellipse 120% 120% at 50% 50%, transparent 38%, rgba(3,3,8,0.86) 100%); }
+
+  /* faint, persistent serif cue labels that follow each drifting ghost */
+  #labels { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+  .cue { position: absolute; transform: translate(-50%, -50%);
+    font-family: 'Fraunces', Georgia, serif; font-weight: 300; font-size: 12.5px;
+    letter-spacing: 0.01em; white-space: nowrap; color: var(--dim);
+    opacity: 0; transition: opacity 600ms ease; will-change: transform, opacity; }
+
+  /* ── top nav ── */
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+    display: flex; align-items: center; gap: 16px; padding: 16px 28px; }
+  .logo { display: flex; align-items: center; gap: 9px; }
+  .logo-mark { position: relative; width: 22px; height: 22px; }
+  .logo-mark::before { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:3px; background:#000; opacity:.5; }
+  .logo-mark::after  { content:''; position:absolute; top:0; left:0; width:20px; height:20px; border-radius:3px; background:var(--yellow); border:1.5px solid rgba(0,0,0,.6); }
+  .logo-text { display: flex; flex-direction: column; gap: 1px; }
+  .logo-name { font-family: 'Fraunces', Georgia, serif; font-size: 1.05rem; font-weight: 400; line-height: 1.1; }
+  .logo-by   { font-size: 7px; font-weight: 600; text-transform: uppercase; letter-spacing: .2em; color: var(--dim); line-height: 1; }
+  .nav-spacer { flex: 1; }
+  .counter { font-size: 11px; letter-spacing: .08em; color: var(--dim); }
+  .counter b { color: var(--ink); font-weight: 500; }
+  .tabs { display: flex; gap: 18px; font-size: 11px; letter-spacing: .16em; }
+  .tabs a { color: var(--dim); } .tabs a.active { color: var(--yellow); }
+
+  /* ── beat caption (used by the coalesce in Phase 2; present + wired now) ── */
+  #caption { position: fixed; left: 50%; top: 46%; transform: translate(-50%,-50%);
+    z-index: 12; font-family: 'Fraunces', Georgia, serif; font-style: italic; font-weight: 300;
+    font-size: 19px; letter-spacing: .01em; color: var(--ink); text-align: center;
+    opacity: 0; transition: opacity 360ms ease; pointer-events: none; text-shadow: 0 2px 30px rgba(0,0,0,.6); }
+
+  /* ── bottom dock: prompt + composer + connect ── */
+  .dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    display: flex; flex-direction: column; align-items: center; gap: 13px;
+    padding: 0 24px 34px; background: linear-gradient(to top, rgba(5,6,14,0.92) 32%, transparent); }
+  .prompt { font-family: 'Fraunces', Georgia, serif; font-style: italic; font-weight: 300;
+    font-size: 15px; color: var(--dim); text-align: center; max-width: 600px; transition: opacity 400ms ease; }
+  .composer { display: flex; align-items: center; gap: 10px; width: min(620px, 92vw);
+    border: 1px solid var(--line); border-radius: 14px; padding: 9px 9px 9px 18px;
+    background: rgba(12,14,28,0.7); backdrop-filter: blur(12px); }
+  .composer input { flex: 1; background: none; border: none; outline: none; font-size: 14.5px; }
+  .composer input::placeholder { color: var(--dim-2); }
+  .composer button { font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: #14140a; background: var(--yellow); border: none; border-radius: 9px; padding: 10px 18px; cursor: pointer;
+    transition: box-shadow 160ms ease; }
+  .composer button:hover { box-shadow: 0 4px 18px rgba(255,212,0,.26); }
+  .connect { display: flex; align-items: center; gap: 10px; font-size: 10.5px; letter-spacing: .04em; color: var(--dim-2); }
+  .connect span { color: var(--dim); }
+  .connect button { background: none; border: none; color: var(--dim); cursor: pointer; padding: 3px 5px; border-radius: 6px; letter-spacing: .04em; }
+  .connect button:hover { color: var(--ink); }
+
+  /* ── drag-drop overlay ── */
+  #drop { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center;
+    background: rgba(5,6,14,0.78); backdrop-filter: blur(6px); }
+  #drop.show { display: flex; }
+  #drop .ring { border: 1.5px dashed rgba(255,212,0,0.5); border-radius: 22px; padding: 60px 84px; text-align: center;
+    font-family: 'Fraunces', Georgia, serif; font-style: italic; font-size: 20px; color: var(--ink); }
+
+  #veil { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center;
+    background: var(--bg); color: var(--dim); font-size: 11px; letter-spacing: .18em;
+    transition: opacity 700ms ease; } #veil.gone { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+  <div id="scene"></div>
+  <div id="vignette"></div>
+  <div id="labels"></div>
+
+  <nav>
+    <div class="logo"><span class="logo-mark"></span>
+      <span class="logo-text"><span class="logo-name">MyAITwin</span><span class="logo-by">BY LUTO</span></span></div>
+    <span class="nav-spacer"></span>
+    <div class="counter">your brain · <b id="count">0</b> items</div>
+    <span class="nav-spacer"></span>
+    <div class="tabs"><a class="active">TWIN</a><a>LIBRARY</a></div>
+  </nav>
+
+  <div id="caption"></div>
+
+  <div class="dock">
+    <div class="prompt" id="prompt">Drop a thought, a note, or a document — or connect a source.</div>
+    <div class="composer">
+      <input id="input" placeholder="What's on your mind?" autocomplete="off" />
+      <button id="store">Store</button>
+    </div>
+    <div class="connect"><span>or connect</span>
+      <button data-src="Email">Email</button>·
+      <button data-src="Notion">Notion</button>·
+      <button data-src="Drive">Drive</button>
+    </div>
+  </div>
+
+  <div id="drop"><div class="ring">release to drop it in</div></div>
+  <div id="veil">forming your space…</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+  /* ════════════════════════════════════════════════════════════════════════
+     CHOREOGRAPHY TIMELINE — one place, in seconds. Phase 2 drives beats from
+     here; Phase 1 uses ARRIVAL only (to prove the input → state-machine wiring).
+     ════════════════════════════════════════════════════════════════════════ */
+  const TL = {
+    ARRIVAL:        { t0: 0.00, dur: 0.55 },
+    UNDERSTANDING:  { t0: 0.55, dur: 1.20 },
+    COALESCE:       { t0: 1.75, dur: 2.10 },
+    SETTLE:         { t0: 3.85, dur: 1.00 },
+    STAGGER:        0.11,   // 110ms between coalescing placeholders
+    JOIN_DUR:       2.0,
+  };
+
+  /* ── tuning (materials/look mirror the profile renderer) ─────────────────── */
+  const T = {
+    CAM_Z:        150,
+    FOG_DENSITY:  0.005,
+    GHOST_OPACITY: 0.4,    // translucent, unformed — clearly "potential"
+    GHOST_SIZE:    3.0,
+    DRIFT_AMP:     11,     // slow, large-amplitude, organic, independent
+    DRIFT_SPEED:   0.00009,
+    SEED_SIZE:     4.2,    // the user's contribution — bright, solid, glossy, central
+    AUTO_YAW:      0.012,  // idle: barely-there rotation
+  };
+
+  // The seven cues — the shape of a mind, waiting (brief §3). Colours reuse the
+  // profile graph's DOMAIN_COLOR hues, one per category.
+  const CATEGORIES = [
+    { key: 'skills',        label: 'your skills',    color: 0x00E0C6 },
+    { key: 'meeting-notes', label: 'meeting notes',  color: 0xFFD400 },
+    { key: 'preferences',   label: 'preferences',    color: 0xA85CFF },
+    { key: 'writing-style', label: 'writing style',  color: 0x5B8CFF },
+    { key: 'brand-spec',    label: 'brand spec',     color: 0xFF3D8B },
+    { key: 'linkedin-voice',label: 'LinkedIn voice', color: 0xFF7A1A },
+    { key: 'email-voice',   label: 'email voice',    color: 0x3DDAA8 },
+  ];
+
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+
+  /* ════════════════════════════════════════════════════════════════════════
+     RENDERER — ported from public/profile.html renderHypergraph(): same scene,
+     fog, camera, lights, glossy MeshStandardMaterial spheres, additive halos,
+     starfield. Here it hosts the IDLE_UNFORMED ghost field.
+     ════════════════════════════════════════════════════════════════════════ */
+  const sceneEl = document.getElementById('scene');
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x05060e, T.FOG_DENSITY);
+  const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 4000);
+  camera.position.set(0, 0, T.CAM_Z);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  sceneEl.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0x404a66, 1.1));
+  const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(1, 1.2, 1); scene.add(key);
+  const fill = new THREE.DirectionalLight(0x88aaff, 0.5); fill.position.set(-1, -0.5, -0.5); scene.add(fill);
+  const group = new THREE.Group(); scene.add(group);
+
+  function makeHalo() {
+    const S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(S/2, S/2, S*0.18, S/2, S/2, S/2);
+    grd.addColorStop(0, 'rgba(255,255,255,0.5)'); grd.addColorStop(0.5, 'rgba(255,255,255,0.12)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, S, S);
+    return new THREE.CanvasTexture(c);
+  }
+  const haloTex = makeHalo();
+
+  // Starfield motes (depth) — same as profile, a touch dimmer for the lonely idle.
+  (function starfield() {
+    const sg = new THREE.BufferGeometry(), sn = 520, sp = new Float32Array(sn * 3);
+    for (let i = 0; i < sn; i++) {
+      const r = 300 + Math.random() * 820, t = Math.random() * 6.28, p = Math.acos(2 * Math.random() - 1);
+      sp.set([r*Math.sin(p)*Math.cos(t), r*Math.sin(p)*Math.sin(t), r*Math.cos(p)], i * 3);
+    }
+    sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+    scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0x8088bb, size: 1.0, transparent: true, opacity: 0.4 })));
+  })();
+
+  /* ── the 7 unformed ghosts (translucent body + wireframe shell + dim halo) ── */
+  const labelsEl = document.getElementById('labels');
+  const ghosts = CATEGORIES.map((cat, i) => {
+    const col = new THREE.Color(cat.color);
+    // scattered start positions on a loose shell — unconnected, a little lonely
+    const golden = 2.399963, y = 1 - (i / (CATEGORIES.length - 1)) * 2, rr = Math.sqrt(Math.max(0, 1 - y*y)), th = golden * i;
+    const base = new THREE.Vector3(Math.cos(th)*rr, y*0.8, Math.sin(th)*rr).multiplyScalar(46);
+    const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col.clone().multiplyScalar(0.22),
+      roughness: 0.62, metalness: 0.05, transparent: true, opacity: T.GHOST_OPACITY });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(T.GHOST_SIZE, 24, 24), mat);
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(T.GHOST_SIZE * 1.18, 16, 16),
+      new THREE.MeshBasicMaterial({ color: col, wireframe: true, transparent: true, opacity: 0.2 }));
+    const hs = T.GHOST_SIZE * 3.0;
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: col, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.22, depthWrite: false }));
+    halo.scale.set(hs, hs, 1);
+    body.position.copy(base); shell.position.copy(base); halo.position.copy(base);
+    group.add(body); group.add(shell); group.add(halo);
+    // drift: each ghost on its own slow organic path
+    const ph = [Math.random()*6.28, Math.random()*6.28, Math.random()*6.28];
+    const fr = [0.8 + Math.random()*0.6, 0.7 + Math.random()*0.6, 0.9 + Math.random()*0.5];
+    const el = document.createElement('div'); el.className = 'cue'; el.textContent = cat.label; labelsEl.appendChild(el);
+    return { cat, body, shell, halo, mat, base, pos: base.clone(), ph, fr, labelEl: el };
+  });
+
+  /* ── persistent faint labels follow each ghost (projected to screen) ─────── */
+  const _v = new THREE.Vector3();
+  function placeLabels() {
+    for (const g of ghosts) {
+      _v.copy(g.body.position); g.body.parent.localToWorld(_v); _v.project(camera);
+      const onScreen = _v.z < 1;
+      const x = (_v.x * 0.5 + 0.5) * innerWidth, y = (-_v.y * 0.5 + 0.5) * innerHeight;
+      g.labelEl.style.left = x + 'px';
+      g.labelEl.style.top = (y + 22) + 'px';
+      g.labelEl.style.opacity = onScreen ? 0.5 : 0;   // faint, muted
+    }
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     STATE MACHINE — CORRECTED ORDER (the v2 fix): the STRUCTURE builds first,
+     THEN the user's BLOCK is laid into its place and locks on (brick → wall).
+       IDLE_UNFORMED → BUILD (Act 1: lattice assembles) → SLOT (region opens) →
+       LAY (block flies in + snaps on) → SETTLE → LIVING.  Subsequent stores skip
+       BUILD and only LAY. Everything is CLOCK-driven (rAF-throttle-safe).
+     ════════════════════════════════════════════════════════════════════════ */
+  let STATE = 'IDLE_UNFORMED';
+  let itemCount = 0;
+  let clkStart = 0;
+  const clk = () => (performance.now() - clkStart) / 1000;     // seconds since trigger
+  const caption = document.getElementById('caption');
+  let _capt = null;
+  function say(text) { if (text === _capt) return; _capt = text; caption.textContent = text || ''; caption.style.opacity = text ? 1 : 0; }
+
+  // Beat timings (seconds). Tune by feel — the SHAPE matters more than the ms.
+  const B = {
+    BUILD:  { t0: 0.00, dur: 1.80 },   // Act 1 — the lattice assembles (the WOW)
+    SLOT:   { t0: 1.80, dur: 0.75 },   // the region brightens / opens a slot
+    LAY:    { t0: 2.55, dur: 0.90 },   // the block flies in and SNAPS on (the money beat)
+    SETTLE: { t0: 3.45, dur: 1.15 },   // downshift into the calm living graph
+    NODE_STAGGER: 0.07, NODE_RAMP: 0.85, EDGE_RAMP: 0.34,
+  };
+
+  // ── Build the lattice once: the 7 category ghosts BECOME structure nodes, plus
+  //    a few cool unlabeled connectors for density. Target positions = a clustered
+  //    fibonacci shell; edges = each node to its 2 nearest neighbours.
+  const STRUCT_R = 34, EXTRA = 6;
+  const N = ghosts.length + EXTRA;
+  const fib = (i) => {
+    const golden = 2.399963, y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(Math.max(0, 1 - y*y)), th = golden * i;
+    return new THREE.Vector3(Math.cos(th)*r, y*0.82, Math.sin(th)*r).multiplyScalar(STRUCT_R);
+  };
+  const structNodes = [];
+  ghosts.forEach((g, i) => structNodes.push({
+    kind: 'cat', cat: g.cat, body: g.body, shell: g.shell, halo: g.halo, mat: g.mat,
+    color: g.cat.color, idle: g.base.clone(), target: fib(i * 2 % N), drift: g,
+    appearAt: B.BUILD.t0 + i * B.NODE_STAGGER, baseHalo: 9.0,
+  }));
+  for (let k = 0; k < EXTRA; k++) {
+    const col = new THREE.Color(0x9fb6ff);            // cool / architectural — scaffold, not "yours"
+    const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col.clone().multiplyScalar(0.3), roughness: 0.4, metalness: 0.15, transparent: true, opacity: 0 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(2.3, 24, 24), mat); body.scale.setScalar(0.001);
+    const hs = 2.3 * 3.0;
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: col, transparent: true, blending: THREE.AdditiveBlending, opacity: 0, depthWrite: false })); halo.scale.set(hs, hs, 1);
+    group.add(body); group.add(halo);
+    structNodes.push({ kind: 'extra', body, halo, mat, color: col.getHex(), target: fib(k * 2 + 1), appearAt: B.BUILD.t0 + (ghosts.length + k) * B.NODE_STAGGER, baseHalo: hs });
+  }
+  const posOf = (i) => structNodes[i].body.position;
+
+  // lattice edges (2 nearest neighbours, deduped), drawn staggered during BUILD
+  const _up = new THREE.Vector3(0, 1, 0);
+  const latticeEdges = [];
+  for (let i = 0; i < structNodes.length; i++) {
+    const near = structNodes.map((n, j) => [j, j === i ? Infinity : structNodes[i].target.distanceTo(n.target)]).sort((a, b) => a[1] - b[1]);
+    for (const [j] of near.slice(0, 2)) { const a = Math.min(i, j), b = Math.max(i, j); if (!latticeEdges.some(e => e.i === a && e.j === b)) latticeEdges.push({ i: a, j: b }); }
+  }
+  latticeEdges.forEach((e, idx) => {
+    const blend = new THREE.Color(structNodes[e.i].color).lerp(new THREE.Color(structNodes[e.j].color), 0.5);
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1, 6, 1, true), new THREE.MeshBasicMaterial({ color: blend, transparent: true, opacity: 0, depthWrite: false }));
+    group.add(mesh); e.mesh = mesh; e.drawAt = B.BUILD.t0 + 0.22 + idx * 0.035; e.baseOp = 0.26;
+  });
+  function orient(mesh, a, b, frac) {
+    const dir = new THREE.Vector3().subVectors(b, a), len = Math.max(0.001, dir.length() * frac);
+    mesh.position.copy(a).addScaledVector(dir, frac * 0.5);
+    mesh.scale.set(1, len, 1); mesh.quaternion.setFromUnitVectors(_up, dir.clone().normalize());
+  }
+
+  // ── category pick (keyword stub; Phase 3 swaps in the real classifier). Returns
+  //    a structNode index or null → "finding where this belongs…" (right-or-silent).
+  const idxOf = (key) => structNodes.findIndex(n => n.kind === 'cat' && n.cat.key === key);
+  function pickCategory(text) {
+    if (!text) return null;
+    const s = ' ' + text.toLowerCase() + ' ', has = (...w) => w.some(x => s.includes(x));
+    if (has('skill', 'i can', 'how to', 'able to')) return idxOf('skills');
+    if (has('meeting', 'call', 'notes', 'sync', 'agenda', 'standup')) return idxOf('meeting-notes');
+    if (has('prefer', 'favourite', 'favorite', 'i like', 'i hate')) return idxOf('preferences');
+    if (has('write', 'writing', 'tone', 'voice', 'style', 'conversation', 'form', 'copy', 'word')) return idxOf('writing-style');
+    if (has('brand', 'colour', 'color', 'logo', 'font', 'design')) return idxOf('brand-spec');
+    if (has('linkedin', 'post')) return idxOf('linkedin-voice');
+    if (has('email', 'reply', 'inbox')) return idxOf('email-voice');
+    return null;
+  }
+
+  // ── the block (the user's contribution) — created at LAY, flies in, snaps on ──
+  let block = null, pending = null;
+  function createBlock() {
+    const known = pending.catIdx != null;
+    const catNode = known ? structNodes[pending.catIdx] : null;
+    const dock = known ? catNode.target.clone().multiplyScalar(1.34).add(new THREE.Vector3(0, 3, 5))
+                       : new THREE.Vector3(0, 0, STRUCT_R * 0.2);       // unsure → near centre, no claim
+    const col = new THREE.Color(0xFFF1C0);             // brightest, warm — the brick (Phase 3 → category hue hi-lum)
+    const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col.clone().multiplyScalar(0.55), roughness: 0.3, metalness: 0.12 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(3.6, 32, 32), mat);
+    const hs = 3.6 * 3.6;
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: col, transparent: true, blending: THREE.AdditiveBlending, opacity: 0, depthWrite: false })); halo.scale.set(hs, hs, 1);
+    const from = new THREE.Vector3(0, -26, 64);        // rises from the input, toward camera
+    body.position.copy(from); halo.position.copy(from);
+    group.add(body); group.add(halo);
+    const el = document.createElement('div'); el.className = 'cue'; el.style.color = '#fff'; el.style.fontStyle = 'normal'; el.style.fontSize = '12px';
+    el.textContent = pending.payload.kind === 'file' ? pending.payload.name : (pending.payload.text || '');
+    el.style.opacity = 0; labelsEl.appendChild(el);
+    // connecting edges: block → its category node (+ one neighbour of that node)
+    const bedges = [];
+    if (known) {
+      const nbrs = latticeEdges.filter(e => e.i === pending.catIdx || e.j === pending.catIdx).map(e => e.i === pending.catIdx ? e.j : e.i);
+      const targets = [pending.catIdx, ...(nbrs.slice(0, 1))];
+      for (const ti of targets) {
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 1, 6, 1, true), new THREE.MeshBasicMaterial({ color: 0xFFE9A8, transparent: true, opacity: 0, depthWrite: false }));
+        group.add(m); bedges.push({ mesh: m, to: ti });
+      }
+    }
+    block = { body, halo, mat, from, dock, known, labelEl: el, bedges };
+  }
+
+  // ── single entry point for every input (type / store / drop / connect) ──
+  function onCapture(payload) {
+    if (STATE !== 'IDLE_UNFORMED' && STATE !== 'LIVING') return;
+    itemCount++; document.getElementById('count').textContent = itemCount;
+    document.getElementById('prompt').style.opacity = 0;
+    pending = { payload, catIdx: pickCategory(payload.text || payload.name || '') };
+    clkStart = performance.now();
+    block = null;
+    STATE = (itemCount === 1) ? 'BUILD' : 'LAY';          // first store builds; later stores only lay (Phase 4 polishes JOIN)
+    tZoom = 116;                                          // camera settles to frame the structure
+    if (STATE === 'LAY') createBlock();
+  }
+
+  /* ── beat driver (clock-based; called every frame while not idle) ─────────── */
+  const clamp01 = x => Math.max(0, Math.min(1, x));
+  const easeInOut = t => t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
+  const easeOutBack = t => { const c1 = 1.5, c3 = c1 + 1; return 1 + c3*Math.pow(t-1, 3) + c1*Math.pow(t-1, 2); }; // snap/lock
+  function placeBlockLabel() {
+    if (!block) return;
+    _v.copy(block.body.position); block.body.parent.localToWorld(_v); _v.project(camera);
+    block.labelEl.style.left = ((_v.x*0.5+0.5)*innerWidth) + 'px';
+    block.labelEl.style.top = ((-_v.y*0.5+0.5)*innerHeight + 24) + 'px';
+  }
+  function driveBeats(c) {
+    // Act 1 — structure assembles: cats migrate idle→target + ghost→structure; extras pop in
+    for (const n of structNodes) {
+      const e = easeInOut(clamp01((c - n.appearAt) / B.NODE_RAMP));
+      if (n.kind === 'cat') {
+        n.body.position.lerpVectors(n.idle, n.target, e);
+        n.shell.position.copy(n.body.position); n.halo.position.copy(n.body.position);
+        n.mat.opacity = lerp(T.GHOST_OPACITY, 0.92, e);
+        n.mat.emissive.setHex(n.color).multiplyScalar(lerp(0.22, 0.4, e));
+        n.shell.material.opacity = lerp(0.2, 0.0, e);
+        n.halo.material.opacity = lerp(0.22, 0.32, e);
+        n.body.scale.setScalar(1);
+      } else {
+        n.body.position.copy(n.target); n.halo.position.copy(n.target);
+        n.body.scale.setScalar(0.001 + e); n.mat.opacity = lerp(0, 0.85, e); n.halo.material.opacity = lerp(0, 0.26, e);
+      }
+    }
+    // edges draw (staggered grow + brief glow), bound into the lattice
+    for (const ed of latticeEdges) {
+      const p = clamp01((c - ed.drawAt) / B.EDGE_RAMP);
+      if (p <= 0) { ed.mesh.material.opacity = 0; ed.mesh.scale.set(1, 0.001, 1); continue; }
+      orient(ed.mesh, posOf(ed.i), posOf(ed.j), easeOut(p));
+      ed.mesh.material.opacity = ed.baseOp * p + Math.sin(Math.min(1, p) * Math.PI) * 0.22;
+    }
+    // Act 2 — SLOT: the chosen region brightens and leans in (opens a slot)
+    if (c >= B.SLOT.t0 && pending && pending.catIdx != null) {
+      const sp = clamp01((c - B.SLOT.t0) / B.SLOT.dur), n = structNodes[pending.catIdx];
+      n.mat.emissive.setHex(n.color).multiplyScalar(0.4 + 0.55 * sp);
+      n.halo.material.opacity = 0.32 + 0.42 * sp;
+      n.body.scale.setScalar(1 + 0.13 * sp);
+    }
+    // Act 2 — LAY: the block flies in and SNAPS onto the structure (the money beat)
+    if (c >= B.LAY.t0) {
+      if (!block && pending) createBlock();
+      if (block) {
+        const lp = clamp01((c - B.LAY.t0) / B.LAY.dur), e = easeOutBack(lp);
+        block.body.position.lerpVectors(block.from, block.dock, e);
+        block.halo.position.copy(block.body.position);
+        block.halo.material.opacity = 0.72 * Math.min(1, lp * 1.5);
+        block.body.scale.setScalar(0.6 + 0.4 * Math.min(1, lp * 1.6));
+        const ep = clamp01((lp - 0.6) / 0.4);                       // connecting edges draw outward after contact
+        for (const be of block.bedges) { orient(be.mesh, block.body.position, posOf(be.to), easeOut(ep)); be.mesh.material.opacity = 0.5 * ep; }
+        block.labelEl.style.opacity = lp > 0.85 ? 0.95 : 0;        // the user's words fade in on lock
+      }
+    }
+    // captions (honest fallback when unsure)
+    if (c < B.SLOT.t0) say('building the structure of your mind…');
+    else if (c < B.LAY.t0) say(pending && pending.catIdx != null ? 'now placing what you stored…' : 'finding where this belongs…');
+    else if (c < B.SETTLE.t0 + 0.15) say('');
+    else if (c < B.SETTLE.t0 + B.SETTLE.dur + 1.8) say('attached — it found its place. it\'s part of you now.');
+    else say('');
+    // SETTLE → LIVING
+    if (STATE !== 'LIVING' && c >= B.SETTLE.t0 + B.SETTLE.dur) {
+      STATE = 'LIVING';
+      const pr = document.getElementById('prompt'); pr.textContent = 'add another, and watch it grow.'; pr.style.opacity = 1;
+    }
+  }
+
+  /* ── input wiring: type, store, drag-drop, connect ───────────────────────── */
+  const input = document.getElementById('input');
+  document.getElementById('store').addEventListener('click', () => { const v = input.value.trim(); if (v) { onCapture({ kind: 'text', text: v }); input.value = ''; } });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { const v = input.value.trim(); if (v) { onCapture({ kind: 'text', text: v }); input.value = ''; } } });
+  document.querySelectorAll('.connect button').forEach(b => b.addEventListener('click', () => onCapture({ kind: 'sync', source: b.dataset.src })));
+
+  const dropEl = document.getElementById('drop');
+  let dragDepth = 0;
+  addEventListener('dragenter', e => { e.preventDefault(); if (dragDepth++ === 0) dropEl.classList.add('show'); });
+  addEventListener('dragover', e => e.preventDefault());
+  addEventListener('dragleave', e => { e.preventDefault(); if (--dragDepth <= 0) { dragDepth = 0; dropEl.classList.remove('show'); } });
+  addEventListener('drop', e => {
+    e.preventDefault(); dragDepth = 0; dropEl.classList.remove('show');
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    const txt = e.dataTransfer.getData('text');
+    if (f) onCapture({ kind: 'file', name: f.name, file: f });
+    else if (txt && txt.trim()) onCapture({ kind: 'text', text: txt.trim() });
+  });
+
+  /* ── camera drag-orbit + wheel zoom (same feel as profile) ───────────────── */
+  let userRotY = 0, userRotX = 0.12, autoYaw = 0, dragging = false, lastX = 0, lastY = 0, tZoom = T.CAM_Z;
+  const dom = renderer.domElement;
+  dom.addEventListener('pointerdown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; document.body.classList.add('grabbing'); });
+  addEventListener('pointerup', () => { dragging = false; document.body.classList.remove('grabbing'); });
+  addEventListener('pointermove', e => { if (!dragging) return; userRotY += (e.clientX - lastX) * 0.005; userRotX += (e.clientY - lastY) * 0.005; userRotX = Math.max(-1.3, Math.min(1.3, userRotX)); lastX = e.clientX; lastY = e.clientY; });
+  dom.addEventListener('wheel', e => { e.preventDefault(); tZoom = Math.max(80, Math.min(280, tZoom + e.deltaY * 0.06)); }, { passive: false });
+  addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+  /* ── animate loop ────────────────────────────────────────────────────────── */
+  let last = performance.now();
+  (function animate() {
+    requestAnimationFrame(animate);
+    const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+
+    if (STATE === 'IDLE_UNFORMED') {
+      // idle ghost drift (independent, slow, organic) — stilled under reduced-motion
+      if (!reduceMotion) for (const g of ghosts) {
+        g.pos.set(
+          g.base.x + Math.sin(now * T.DRIFT_SPEED * g.fr[0] + g.ph[0]) * T.DRIFT_AMP,
+          g.base.y + Math.cos(now * T.DRIFT_SPEED * g.fr[1] + g.ph[1]) * T.DRIFT_AMP * 0.8,
+          g.base.z + Math.sin(now * T.DRIFT_SPEED * g.fr[2] + g.ph[2]) * T.DRIFT_AMP
+        );
+        g.body.position.copy(g.pos); g.shell.position.copy(g.pos); g.halo.position.copy(g.pos);
+      }
+    } else {
+      driveBeats(reduceMotion ? 9.9 : clk());            // reduced-motion → jump to settled (no spectacle)
+      if (STATE === 'LIVING' && !reduceMotion) {          // gentle breathing at rest
+        const br = 1 + Math.sin(now * 0.0016) * 0.012;
+        for (const n of structNodes) n.body.scale.setScalar(br);
+        if (block) block.body.scale.setScalar(1.02 + Math.sin(now * 0.0016 + 1) * 0.014);
+      }
+    }
+
+    const yaw = reduceMotion ? 0 : (STATE === 'IDLE_UNFORMED' ? T.AUTO_YAW : STATE === 'LIVING' ? 0.02 : 0.05);
+    autoYaw += dt * yaw;
+    group.rotation.y = userRotY + autoYaw;
+    group.rotation.x = userRotX;
+    camera.position.z += (tZoom - camera.position.z) * 0.06;
+
+    placeLabels(); placeBlockLabel();
+    renderer.render(scene, camera);
+  })();
+
+  setTimeout(() => document.getElementById('veil').classList.add('gone'), 700);
+  </script>
+</body>
+</html>

@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Voice · MyAITwin</title>
+<meta name="description" content="Record, transcribe, and keep your voice notes. Private by default. Add a note to your twin the moment it's worth keeping." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;1,8..60,400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:   #f5f3ef;
+    --paper-2: #F5F4F1;
+    --paper-3: #EDEAE2;
+    --card:    #FBFAF6;
+    --ink:     #0F0E0D;
+    --ink-2:   #3A352E;
+    --muted:   #6B6760;
+    --line:    #E4E0D8;
+    --yellow:      #FFE34A;
+    --yellow-deep: #F5C500;
+    /* Voice accent is the system yellow (--yellow); repainted from coral per OPEN DECISION. */
+    --mint:    #B8E5C8;
+    --sky:     #C8DCF0;
+    --lilac:   #E0D1F0;
+    --shadow-brutal: 3px 3px 0 var(--ink);
+    --shadow-soft:   2px 2px 0 var(--ink);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  a { color: inherit; }
+  button { font-family: inherit; cursor: pointer; }
+  em { font-style: italic; }
+
+  /* ── Masthead ─────────────────────────────────────────────────────────── */
+  header.site-header {
+    border-bottom: 1.5px solid var(--ink);
+    background: var(--paper);
+    position: sticky; top: 0; z-index: 40;
+  }
+  .header-inner {
+    max-width: 1080px; margin: 0 auto;
+    padding: 12px 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .logo { display: flex; align-items: center; gap: 9px; text-decoration: none; }
+  .logo-mark {
+    width: 26px; height: 26px; border-radius: 7px;
+    background: var(--yellow); border: 1.5px solid var(--ink);
+    box-shadow: var(--shadow-soft);
+    position: relative; flex-shrink: 0;
+  }
+  .logo-mark::after {
+    content: ''; position: absolute; inset: 0; margin: auto;
+    width: 7px; height: 11px; border-radius: 4px;
+    background: var(--ink);
+  }
+  .logo-text { display: flex; flex-direction: column; line-height: 1; gap: 2px; }
+  .logo-name { font-weight: 700; font-size: 14px; letter-spacing: -0.01em; }
+  .logo-by   { font-family: 'JetBrains Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .signin-link {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.1em; text-decoration: none;
+    color: var(--muted);
+  }
+  .signin-link:hover { color: var(--ink); }
+
+  /* ── Surface nav ──────────────────────────────────────────────────────── */
+  nav.surface-nav {
+    display: flex; justify-content: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper);
+  }
+  .surface-nav-group { display: flex; gap: 6px; background: var(--paper-3); border: 1.5px solid var(--ink); border-radius: 999px; padding: 4px; box-shadow: var(--shadow-soft); }
+  .main-tab {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    padding: 8px 18px; border-radius: 999px; border: none; background: transparent;
+    color: var(--muted); text-decoration: none;
+  }
+  .main-tab:hover:not(.active) { color: var(--ink); background: var(--paper); }
+  .main-tab.active { background: var(--yellow); color: var(--ink); border: 1.5px solid var(--ink); margin: -1.5px; }
+
+  /* ── Layout ───────────────────────────────────────────────────────────── */
+  main { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 26px 20px 80px; }
+  .view[hidden] { display: none; }
+
+  /* ── Hero ─────────────────────────────────────────────────────────────── */
+  .hero { margin-bottom: 22px; }
+  .hero-eyebrow {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.16em; color: var(--ink-2);
+    margin: 0 0 8px;
+  }
+  .hero-title { font-family: 'Source Serif 4', Georgia, serif; font-weight: 500; font-size: 30px; line-height: 1.12; letter-spacing: -0.01em; margin: 0 0 8px; }
+  .hero-title em { font-style: italic; background: linear-gradient(transparent 58%, var(--yellow) 58%); padding: 0 0.05em; border-radius: 2px; }
+  .hero-dek { color: var(--ink-2); font-size: 15px; max-width: 56ch; margin: 0; }
+  .hero-dek a { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1.5px; }
+
+  /* ── Record hero (the primary action on the home screen) ──────────────── */
+  .record-hero {
+    display: flex; align-items: center; gap: 20px; width: 100%; text-align: left;
+    background: var(--yellow); color: var(--ink);
+    border: 1.5px solid var(--ink); border-radius: 18px;
+    box-shadow: var(--shadow-brutal); padding: 26px 28px; margin: 18px 0 26px;
+    cursor: pointer; transition: transform 110ms, box-shadow 110ms;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .record-hero:hover  { transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--ink); }
+  .record-hero:active { transform: translate(4px,4px); box-shadow: none; }
+  .record-hero-ico {
+    flex-shrink: 0; width: 66px; height: 66px; border-radius: 50%;
+    background: var(--ink); color: var(--yellow);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .record-hero-ico svg { width: 30px; height: 30px; }
+  .record-hero-text { flex: 1; min-width: 0; }
+  .record-hero-title { font-family: 'Source Serif 4', Georgia, serif; font-weight: 600; font-size: 25px; line-height: 1.08; }
+  .record-hero-sub { font-size: 14px; color: var(--ink); opacity: 0.72; margin-top: 4px; }
+  @media (max-width: 640px) {
+    .record-hero { padding: 20px; gap: 15px; }
+    .record-hero-ico { width: 56px; height: 56px; }
+    .record-hero-title { font-size: 21px; }
+  }
+
+  /* ── Search ───────────────────────────────────────────────────────────── */
+  .lib-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .search-wrap { position: relative; flex: 1; }
+  .search-input {
+    width: 100%; padding: 10px 14px 10px 36px;
+    border: 1.5px solid var(--ink); border-radius: 10px; background: var(--card);
+    font-size: 14px; font-family: inherit; color: var(--ink);
+  }
+  .search-input:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .search-ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--muted); }
+  .lib-count { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
+
+  /* ── Notes list ───────────────────────────────────────────────────────── */
+  .notes-list { display: flex; flex-direction: column; gap: 12px; }
+  .note-card {
+    background: var(--card); border: 1.5px solid var(--ink); border-radius: 12px;
+    box-shadow: var(--shadow-soft); padding: 15px 17px; cursor: pointer;
+    transition: transform 90ms, box-shadow 90ms;
+    border-left: 5px solid var(--yellow);
+  }
+  .note-card:hover { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--ink); }
+  .note-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .note-card-title { font-weight: 700; font-size: 16px; line-height: 1.25; }
+  .note-card-meta { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+  .note-card-snippet { color: var(--ink-2); font-size: 14px; margin-top: 7px; font-family: 'Source Serif 4', Georgia, serif; line-height: 1.5; }
+  .badge-twin {
+    display: inline-flex; align-items: center; gap: 5px; margin-top: 9px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.07em;
+    background: var(--mint); color: var(--ink); border: 1.5px solid var(--ink);
+    border-radius: 999px; padding: 2px 9px;
+  }
+
+  /* ── Inline note actions (on each list card) ──────────────────────────── */
+  .note-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 13px; }
+  .note-act {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.03em;
+    border: 1.5px solid var(--ink); border-radius: 8px; background: var(--card); color: var(--ink);
+    padding: 6px 9px; cursor: pointer; transition: transform 80ms, box-shadow 80ms;
+  }
+  .note-act:hover  { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--ink); }
+  .note-act:active { transform: translate(2px,2px); box-shadow: none; }
+  .note-act svg { width: 13px; height: 13px; }
+  .note-act.primary { background: var(--yellow); }
+  .note-act.in-twin { background: var(--mint); cursor: default; }
+  .note-act.in-twin:hover { transform: none; box-shadow: none; }
+  .note-act.danger { color: #c0392b; border-color: #c0392b; }
+  .note-act.icon-only { padding: 6px; }
+
+  /* ── Empty state ──────────────────────────────────────────────────────── */
+  .empty { text-align: center; padding: 56px 20px; color: var(--muted); }
+  .empty-emoji { font-size: 34px; }
+  .empty-title { font-family: 'Source Serif 4', Georgia, serif; font-size: 20px; color: var(--ink); margin: 12px 0 6px; }
+  .empty-sub { font-size: 14px; max-width: 42ch; margin: 0 auto; }
+
+  /* ── Capture view ─────────────────────────────────────────────────────── */
+  .capture-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .back-link {
+    display: inline-flex; align-items: center; gap: 6px; background: none; border: none;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 0;
+  }
+  .back-link:hover { color: var(--ink); }
+  .capture-stage {
+    background: var(--card); border: 1.5px solid var(--ink); border-radius: 16px;
+    box-shadow: var(--shadow-brutal);
+    /* Bounded height so the transcript scrolls INTERNALLY and the record
+       controls are never pushed off-screen. Min-height fits viz + a usable
+       transcript + controls even on short screens. */
+    height: calc(100dvh - 230px); min-height: 470px; max-height: 880px;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  #studio-mount { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .capture-note { text-align: center; color: var(--muted); font-size: 13px; margin-top: 14px; }
+  .capture-note strong { color: var(--ink); font-weight: 600; }
+
+  /* ── Detail view ──────────────────────────────────────────────────────── */
+  .detail-title-input {
+    width: 100%; font-family: 'Source Serif 4', Georgia, serif; font-weight: 500;
+    font-size: 26px; line-height: 1.15; border: none; background: transparent; color: var(--ink);
+    padding: 2px 4px; margin: 4px 0 4px -4px; border-radius: 6px;
+  }
+  .detail-title-input:hover { background: var(--paper-2); }
+  .detail-title-input:focus { outline: 2px solid var(--ink); background: #fff; }
+  .detail-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 16px; }
+  .detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+  .act-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--card); border: 1.5px solid var(--ink); border-radius: 9px;
+    padding: 8px 13px; font-size: 13px; font-weight: 600; color: var(--ink);
+    box-shadow: var(--shadow-soft); transition: transform 90ms, box-shadow 90ms;
+  }
+  .act-btn:hover { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--ink); }
+  .act-btn svg { width: 15px; height: 15px; }
+  .act-btn.primary { background: var(--yellow); color: var(--ink); }
+  .act-btn.danger:hover { background: #c0392b; color: #fff; }
+  .transcript-box {
+    background: var(--card); border: 1.5px solid var(--ink); border-radius: 12px;
+    box-shadow: var(--shadow-soft); padding: 20px 22px;
+    font-family: 'Source Serif 4', Georgia, serif; font-size: 17px; line-height: 1.7; color: var(--ink);
+    white-space: pre-wrap; word-break: break-word; min-height: 120px;
+  }
+  textarea.transcript-edit {
+    width: 100%; min-height: 260px; resize: vertical;
+    background: #fff; border: 1.5px solid var(--ink); border-radius: 12px; padding: 18px 20px;
+    font-family: 'Source Serif 4', Georgia, serif; font-size: 17px; line-height: 1.7; color: var(--ink);
+  }
+  .promoted-banner {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--mint); border: 1.5px solid var(--ink); border-radius: 11px;
+    box-shadow: var(--shadow-soft); padding: 12px 15px; margin-bottom: 18px; font-size: 14px;
+  }
+  .promoted-banner a { font-weight: 700; }
+
+  /* ── Proposal / review card (Add to Twin) ─────────────────────────────── */
+  .modal-scrim {
+    position: fixed; inset: 0; background: rgba(15,14,13,0.5); backdrop-filter: blur(3px);
+    display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; z-index: 60; overflow-y: auto;
+  }
+  .modal-scrim[hidden] { display: none; }
+  .modal {
+    background: var(--paper); border: 1.5px solid var(--ink); border-radius: 16px;
+    box-shadow: 5px 5px 0 var(--ink); width: 100%; max-width: 560px; padding: 22px 24px 26px;
+  }
+  .modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+  .modal-title { font-family: 'Source Serif 4', Georgia, serif; font-size: 22px; font-weight: 500; }
+  .modal-x { background: none; border: none; font-size: 22px; line-height: 1; color: var(--muted); padding: 2px 6px; }
+  .modal-x:hover { color: var(--ink); }
+  .modal-sub { color: var(--ink-2); font-size: 14px; margin: 2px 0 16px; }
+  .promote-mode { display: inline-flex; border: 1.5px solid var(--ink); border-radius: 999px; overflow: hidden; margin-bottom: 18px; }
+  .promote-mode button { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 15px; border: none; background: var(--paper-3); color: var(--muted); }
+  .promote-mode button.active { background: var(--ink); color: var(--paper); }
+
+  .proposal { background: var(--card); border: 1.5px solid var(--ink); border-radius: 12px; box-shadow: var(--shadow-soft); padding: 15px 16px; margin-bottom: 14px; }
+  .proposal.stored { opacity: 0.7; border-left: 5px solid var(--mint); }
+  .proposal-row { display: grid; grid-template-columns: 86px 1fr; gap: 8px 12px; align-items: center; margin-bottom: 9px; }
+  .proposal-row.stack { grid-template-columns: 1fr; }
+  .proposal-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .p-input, .p-select, .p-textarea {
+    width: 100%; border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 10px;
+    font-family: inherit; font-size: 14px; color: var(--ink); background: #fff;
+  }
+  .p-input:focus, .p-select:focus, .p-textarea:focus { outline: none; border-color: var(--ink); }
+  .p-textarea { font-family: 'Source Serif 4', Georgia, serif; font-size: 15px; line-height: 1.55; min-height: 96px; resize: vertical; }
+  .proposal-actions { display: flex; gap: 8px; margin-top: 4px; }
+  .proposal-btn { border: 1.5px solid var(--ink); border-radius: 8px; padding: 8px 16px; font-weight: 700; font-size: 13px; box-shadow: var(--shadow-soft); }
+  .proposal-btn-primary { background: var(--yellow); color: var(--ink); }
+  .proposal-btn-secondary { background: var(--card); color: var(--ink); }
+  .proposal-btn:disabled { opacity: 0.5; box-shadow: none; cursor: default; }
+  .proposal-done { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .proposal-done a { font-weight: 700; }
+  .promote-empty { color: var(--muted); font-size: 14px; padding: 8px 0 4px; }
+
+  /* ── Toast ────────────────────────────────────────────────────────────── */
+  #toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: var(--paper); border-radius: 10px; padding: 11px 18px;
+    font-size: 14px; font-weight: 600; box-shadow: var(--shadow-brutal); opacity: 0;
+    transition: opacity 200ms, transform 200ms; z-index: 80; pointer-events: none; max-width: 90vw;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .spin { display: inline-block; width: 15px; height: 15px; border: 2px solid var(--line); border-top-color: var(--yellow-deep); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: -2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 560px) {
+    .hero-title { font-size: 25px; }
+    .record-bar { flex-direction: column; align-items: stretch; }
+    .proposal-row { grid-template-columns: 1fr; }
+    .proposal-label { margin-bottom: -4px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a href="/twin" class="logo" aria-label="MyAITwin home">
+      <span class="logo-mark"></span>
+      <span class="logo-text">
+        <span class="logo-name">MyAITwin</span>
+        <span class="logo-by">by Luto</span>
+      </span>
+    </a>
+    <div class="header-right">
+      <a href="/twin/library" class="signin-link">Your twin →</a>
+    </div>
+  </div>
+</header>
+
+<!-- Persistent action bar (replaces the old CHAT · BRAIN · VOICE toggle). -->
+<nav class="surface-nav" aria-label="Main actions">
+  <div class="surface-nav-group">
+    <a class="main-tab" href="/twin/chat">Store &amp; Search</a>
+    <a class="main-tab active" href="/voice" aria-current="page">Voice</a>
+    <a class="main-tab" href="/twin/library">Brain</a>
+  </div>
+</nav>
+
+<main>
+
+  <!-- ── Library view ──────────────────────────────────────────────────── -->
+  <section id="view-library" class="view">
+    <div class="hero">
+      <p class="hero-eyebrow">Voice notes</p>
+      <h1 class="hero-title">Record, transcribe, <em>keep</em>.</h1>
+      <p class="hero-dek">Catch a thought or a whole meeting. Every note is private and stays yours. When one is worth keeping, <a href="#" id="hero-twin-link">add it to your twin</a> in a click.</p>
+    </div>
+
+    <button class="record-hero" id="open-capture" type="button">
+      <span class="record-hero-ico">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 1a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
+          <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </span>
+      <span class="record-hero-text">
+        <span class="record-hero-title">Record a note</span>
+        <span class="record-hero-sub">Tap and talk. Live transcript as you speak, kept automatically.</span>
+      </span>
+    </button>
+
+    <div class="lib-toolbar">
+      <div class="search-wrap">
+        <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="search" class="search-input" type="search" placeholder="Search your notes…" autocomplete="off" />
+      </div>
+      <span class="lib-count" id="lib-count"></span>
+    </div>
+
+    <div id="notes-list" class="notes-list"></div>
+    <div id="lib-empty" hidden></div>
+  </section>
+
+  <!-- ── Capture view ──────────────────────────────────────────────────── -->
+  <section id="view-capture" class="view" hidden>
+    <div class="capture-head">
+      <button class="back-link" id="capture-back" type="button">← Notes</button>
+    </div>
+    <div class="capture-stage"><div id="studio-mount"></div></div>
+    <p class="capture-note">This stays a <strong>private note</strong>. Nothing reaches your twin until you choose to add it.</p>
+  </section>
+
+  <!-- ── Detail view ───────────────────────────────────────────────────── -->
+  <section id="view-detail" class="view" hidden>
+    <button class="back-link" id="detail-back" type="button" style="margin-bottom:14px;">← Notes</button>
+    <div id="promoted-banner-slot"></div>
+    <input id="detail-title" class="detail-title-input" aria-label="Note title" />
+    <div class="detail-meta" id="detail-meta"></div>
+    <div class="detail-actions" id="detail-actions"></div>
+    <div id="transcript-slot"></div>
+  </section>
+
+</main>
+
+<!-- ── Add to Twin modal ───────────────────────────────────────────────── -->
+<div class="modal-scrim" id="promote-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="promote-title">
+    <div class="modal-head">
+      <div class="modal-title" id="promote-title">Add to your twin</div>
+      <button class="modal-x" id="promote-close" aria-label="Close">×</button>
+    </div>
+    <p class="modal-sub">Review what gets stored. Your twin will be able to retrieve and build on it. The original note stays here, untouched.</p>
+    <div class="promote-mode" role="group" aria-label="How to store">
+      <button data-pmode="clean" class="active" type="button">Cleaned up</button>
+      <button data-pmode="raw" type="button">Raw transcript</button>
+    </div>
+    <div id="promote-body"></div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script type="module">
+'use strict';
+
+const STORAGE_KEY = 'mt_anon_token';
+const TYPE_OPTIONS = ['knowledge', 'skill', 'idea', 'principle', 'voice', 'brand', 'template', 'resource'];
+const PROV_OPTIONS = [['personal', 'Me (personal)'], ['employer', 'My company'], ['client', 'Client'], ['external', 'External']];
+
+const state = {
+  token:       null,
+  notes:       [],
+  current:     null,   // note being viewed in detail
+  studio:      null,
+  filter:      '',
+  promoteMode: 'clean',
+};
+
+// ── API client ─────────────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const headers = Object.assign(
+    { 'Content-Type': 'application/json' },
+    state.token ? { 'X-Anon-Token': state.token } : {},
+    opts.headers || {}
+  );
+  const res = await fetch(path, { ...opts, headers });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(body.error || `HTTP ${res.status}`);
+    err.status = res.status; err.body = body;
+    throw err;
+  }
+  return body;
+}
+
+// Shares the anon session with /twin and /twin/library (same STORAGE_KEY), so a
+// person's notes follow them across every surface.
+async function ensureSession() {
+  state.token = localStorage.getItem(STORAGE_KEY);
+  if (state.token) return;
+  const { anonToken } = await api('/api/anon/init', { method: 'POST', body: '{}' });
+  state.token = anonToken;
+  localStorage.setItem(STORAGE_KEY, anonToken);
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function $(id) { return document.getElementById(id); }
+
+function fmtDate(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function fmtDuration(ms) {
+  if (!ms || ms < 1000) return null;
+  const s = Math.round(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+let _toastT = null;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+function showView(name) {
+  for (const v of ['library', 'capture', 'detail']) {
+    $('view-' + v).hidden = (v !== name);
+  }
+  // Pause the visualiser's rAF loop while the capture view is off-screen.
+  if (state.studio) { name === 'capture' ? state.studio.resume() : state.studio.pause(); }
+  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+}
+
+// ── Library list ─────────────────────────────────────────────────────────────
+async function loadNotes() {
+  try {
+    const { notes } = await api('/api/notes');
+    state.notes = notes || [];
+  } catch (err) {
+    state.notes = [];
+    toast('Could not load your notes.');
+  }
+  renderList();
+}
+
+function renderList() {
+  const list = $('notes-list');
+  const empty = $('lib-empty');
+  const q = state.filter.trim().toLowerCase();
+  const notes = q
+    ? state.notes.filter(n =>
+        (n.title || '').toLowerCase().includes(q) ||
+        (n.transcript || n.snippet || '').toLowerCase().includes(q))
+    : state.notes;
+
+  $('lib-count').textContent = state.notes.length
+    ? `${state.notes.length} note${state.notes.length === 1 ? '' : 's'}`
+    : '';
+
+  if (!notes.length) {
+    list.innerHTML = '';
+    empty.hidden = false;
+    empty.innerHTML = state.notes.length
+      ? `<div class="empty"><div class="empty-title">No notes match "${esc(state.filter)}"</div><div class="empty-sub">Try a different word.</div></div>`
+      : `<div class="empty">
+           <div class="empty-emoji" aria-hidden="true"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></div>
+           <div class="empty-title">Your notes will live here</div>
+           <div class="empty-sub">Hit Record to capture a thought or a meeting. Read it back, edit it, share it. Add it to your twin only when you want to.</div>
+         </div>`;
+    return;
+  }
+  empty.hidden = true;
+  list.innerHTML = '';
+  for (const n of notes) list.appendChild(noteCard(n));
+}
+
+function noteCard(n) {
+  const card = document.createElement('div');
+  card.className = 'note-card';
+  const metaBits = [fmtDate(n.created_at), fmtDuration(n.duration_ms)].filter(Boolean);
+  const promoted = !!n.promoted_knowledge_id;
+  card.innerHTML = `
+    <div class="note-card-top">
+      <div class="note-card-title">${esc(n.title || 'Untitled note')}</div>
+      <div class="note-card-meta">${esc(metaBits.join(' · '))}</div>
+    </div>
+    <div class="note-card-snippet">${esc(n.snippet || '')}</div>
+    <div class="note-actions"></div>
+  `;
+  card.addEventListener('click', () => openDetail(n.id));
+
+  const row = card.querySelector('.note-actions');
+  const act = (label, cls, iconHtml, onClick, iconOnly) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'note-act' + (cls ? ' ' + cls : '') + (iconOnly ? ' icon-only' : '');
+    b.innerHTML = (iconHtml || '') + (iconOnly ? '' : esc(label));
+    if (iconOnly) b.setAttribute('aria-label', label), b.setAttribute('title', label);
+    b.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+    return b;
+  };
+
+  if (promoted) {
+    row.appendChild(act('In your twin', 'in-twin', iconCheck(), () => {}));
+  } else {
+    row.appendChild(act('Add to twin', 'primary', iconSpark(), () => { state.current = n; openPromote(); }));
+  }
+  row.appendChild(act('Open',     '',       iconEdit(),     () => openDetail(n.id),        true));
+  row.appendChild(act('Copy',     '',       iconCopy(),     () => copyTranscript(n),        true));
+  row.appendChild(act('Download', '',       iconDownload(), () => downloadTranscript(n),    true));
+  row.appendChild(act('Share',    '',       iconShare(),    () => shareTranscript(n),       true));
+  row.appendChild(act('Delete',   'danger', iconTrash(),    () => deleteNoteById(n.id),     true));
+  return card;
+}
+
+// ── Capture ──────────────────────────────────────────────────────────────────
+// Concurrency-safe: the press-to-warm (pointerdown) and tap-to-record (click)
+// handlers both call this within the same tap, before either could assign
+// state.studio. Cache the in-flight promise so they share ONE instance — without
+// it, two studios get created and mounted (two record buttons, two transcripts,
+// doubled render loops + Deepgram sockets → slow).
+let _studioPromise = null;
+function ensureStudio() {
+  if (state.studio) return Promise.resolve(state.studio);
+  if (_studioPromise) return _studioPromise;
+  _studioPromise = (async () => {
+    const mod = await import('/voice-studio.js');
+    const studio = new mod.VoiceStudio({
+      mountIn:    $('studio-mount'),
+      apiHeaders: state.token ? { 'X-Anon-Token': state.token } : {},
+      // On finish the note is kept automatically — no review screen, no save step.
+      onCaptured: ({ transcript, durationMs }) => autoSaveCapture(transcript, durationMs),
+    });
+    studio.mount();
+    state.studio = studio;
+    return studio;
+  })();
+  return _studioPromise;
+}
+
+// Finished recording → save straight to the notes list (top, kept), return home.
+async function autoSaveCapture(transcript, durationMs) {
+  showView('library');
+  try {
+    await api('/api/notes', {
+      method: 'POST',
+      body: JSON.stringify({ transcript, duration_ms: durationMs }),
+    });
+    await loadNotes();
+    toast('Note kept');
+  } catch {
+    toast('Could not save the note.');
+  }
+}
+
+async function openCapture(autoStart = false) {
+  showView('capture');
+  const studio = await ensureStudio();
+  if (autoStart) studio.start();   // one tap from the library records straight away
+  else studio.prewarm();           // P0: warm the mic + Deepgram socket
+}
+
+function closeCapture() {
+  if (state.studio) { try { state.studio.cancel(); } catch {} }
+  showView('library');
+}
+
+// ── Detail ───────────────────────────────────────────────────────────────────
+async function openDetail(id) {
+  try {
+    const { note } = await api('/api/notes/' + encodeURIComponent(id));
+    state.current = note;
+    renderDetail();
+    showView('detail');
+  } catch (err) {
+    toast(err.status === 404 ? 'That note is gone.' : 'Could not open that note.');
+    loadNotes();
+  }
+}
+
+function renderDetail() {
+  const n = state.current;
+  if (!n) return;
+
+  $('detail-title').value = n.title || '';
+
+  const bits = [fmtDate(n.created_at), fmtDuration(n.duration_ms)].filter(Boolean);
+  $('detail-meta').textContent = bits.join('  ·  ');
+
+  // Promoted banner
+  const banner = $('promoted-banner-slot');
+  banner.innerHTML = n.promoted_knowledge_id
+    ? `<div class="promoted-banner">✓ Added to your twin. <a href="/twin/library?id=${encodeURIComponent(n.promoted_knowledge_id)}">Open it in your Brain →</a></div>`
+    : '';
+
+  // Transcript (read mode)
+  renderTranscriptRead();
+
+  // Actions
+  renderDetailActions(false);
+}
+
+function renderTranscriptRead() {
+  const slot = $('transcript-slot');
+  slot.innerHTML = `<div class="transcript-box">${esc(state.current.transcript)}</div>`;
+}
+
+function renderDetailActions(editing) {
+  const bar = $('detail-actions');
+  bar.innerHTML = '';
+  const n = state.current;
+
+  if (editing) {
+    bar.appendChild(actBtn('Save', 'primary', iconCheck(), saveTranscriptEdit));
+    bar.appendChild(actBtn('Cancel', '', null, () => { renderTranscriptRead(); renderDetailActions(false); }));
+    return;
+  }
+
+  bar.appendChild(actBtn(n.promoted_knowledge_id ? 'Add again' : 'Add to twin', 'primary', iconSpark(), openPromote));
+  bar.appendChild(actBtn('Edit', '', iconEdit(), startTranscriptEdit));
+  bar.appendChild(actBtn('Copy', '', iconCopy(), () => copyTranscript(n)));
+  bar.appendChild(actBtn('Download', '', iconDownload(), () => downloadTranscript(n)));
+  bar.appendChild(actBtn('Share', '', iconShare(), () => shareTranscript(n)));
+  bar.appendChild(actBtn('Delete', 'danger', iconTrash(), deleteCurrent));
+}
+
+function actBtn(label, cls, iconHtml, onClick) {
+  const b = document.createElement('button');
+  b.className = 'act-btn' + (cls ? ' ' + cls : '');
+  b.innerHTML = (iconHtml || '') + esc(label);
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function startTranscriptEdit() {
+  const slot = $('transcript-slot');
+  slot.innerHTML = `<textarea class="transcript-edit" id="transcript-edit"></textarea>`;
+  $('transcript-edit').value = state.current.transcript;
+  $('transcript-edit').focus();
+  renderDetailActions(true);
+}
+
+async function saveTranscriptEdit() {
+  const text = $('transcript-edit').value.trim();
+  if (!text) { toast('A note needs some text.'); return; }
+  try {
+    const { note } = await api('/api/notes/' + encodeURIComponent(state.current.id), {
+      method: 'PATCH', body: JSON.stringify({ transcript: text }),
+    });
+    state.current = note;
+    renderTranscriptRead();
+    renderDetailActions(false);
+    loadNotes();
+    toast('Saved');
+  } catch (err) { toast('Could not save the edit.'); }
+}
+
+// Rename: save title on blur / Enter if it changed.
+async function maybeSaveTitle() {
+  const n = state.current;
+  if (!n) return;
+  const next = $('detail-title').value.trim();
+  if (next === (n.title || '')) return;
+  try {
+    const { note } = await api('/api/notes/' + encodeURIComponent(n.id), {
+      method: 'PATCH', body: JSON.stringify({ title: next }),
+    });
+    state.current = note;
+    $('detail-title').value = note.title || '';
+    loadNotes();
+  } catch (err) { toast('Could not rename.'); }
+}
+
+async function deleteCurrent() {
+  const n = state.current;
+  if (!n) return;
+  if (await deleteNoteById(n.id)) { state.current = null; showView('library'); }
+}
+
+// Shared delete used by the detail view and the inline list action.
+async function deleteNoteById(id) {
+  if (!confirm('Delete this note? This cannot be undone.')) return false;
+  try {
+    await api('/api/notes/' + encodeURIComponent(id), { method: 'DELETE' });
+    if (state.current && state.current.id === id) state.current = null;
+    await loadNotes();
+    toast('Note deleted');
+    return true;
+  } catch (err) { toast('Could not delete.'); return false; }
+}
+
+// ── Transcript actions ───────────────────────────────────────────────────────
+async function copyTranscript(n) {
+  try { await navigator.clipboard.writeText(n.transcript); toast('Transcript copied'); }
+  catch { toast('Could not copy.'); }
+}
+function downloadTranscript(n) {
+  const slug = (n.title || 'note').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'note';
+  const blob = new Blob([n.transcript], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `${slug}.txt`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast('Downloaded');
+}
+async function shareTranscript(n) {
+  if (navigator.share) {
+    try { await navigator.share({ title: n.title || 'Voice note', text: n.transcript }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(n.transcript); toast('Sharing not supported, copied instead'); }
+  catch { toast('Could not share.'); }
+}
+
+// ── Add to Twin (the bridge) ──────────────────────────────────────────────────
+function openPromote() {
+  state.promoteMode = 'clean';
+  document.querySelectorAll('.promote-mode button').forEach(b => b.classList.toggle('active', b.dataset.pmode === 'clean'));
+  $('promote-modal').hidden = false;
+  buildProposals();
+}
+function closePromote() { $('promote-modal').hidden = true; $('promote-body').innerHTML = ''; }
+
+async function buildProposals() {
+  const body = $('promote-body');
+  const n = state.current;
+
+  // Raw mode: show the raw transcript in a single editable card.
+  if (state.promoteMode === 'raw') {
+    renderSingleProposal({
+      title: n.title || 'Voice note',
+      content: n.transcript,
+      type: 'knowledge',
+      tags: [],
+      provenance: 'personal',
+    });
+    return;
+  }
+
+  // Cleaned: extract the best single proposal from the transcript.
+  body.innerHTML = `<div class="promote-empty"><span class="spin"></span> Cleaning up your note…</div>`;
+  try {
+    const { proposals } = await api('/api/voice/extract', {
+      method: 'POST', body: JSON.stringify({ transcript: n.transcript }),
+    });
+    if (!proposals || !proposals.length) {
+      switchPromoteMode('raw');
+      return;
+    }
+    renderSingleProposal(proposals[0]);
+  } catch (err) {
+    const longNote = err.status === 400;
+    body.innerHTML = `<div class="promote-empty">${longNote ? 'Note is too long to clean up automatically.' : 'Could not prepare a cleaned version.'} Switching to raw transcript.</div>`;
+    setTimeout(() => switchPromoteMode('raw'), 1200);
+  }
+}
+
+function switchPromoteMode(mode) {
+  state.promoteMode = mode;
+  document.querySelectorAll('.promote-mode button').forEach(b => b.classList.toggle('active', b.dataset.pmode === mode));
+  buildProposals();
+}
+
+function renderSingleProposal(p) {
+  const body = $('promote-body');
+  body.innerHTML = '';
+  body.appendChild(proposalCard(p));
+}
+
+function proposalCard(p) {
+  const card = document.createElement('div');
+  card.className = 'proposal';
+
+  const provInit = ['personal', 'employer', 'client', 'external'].includes(p.provenance)
+    ? p.provenance
+    : (p.provenance === 'organisational' ? 'employer' : 'personal');
+  const typeInit = TYPE_OPTIONS.includes(p.type) ? p.type : 'knowledge';
+
+  card.innerHTML = `
+    <div class="proposal-row">
+      <span class="proposal-label">Title</span>
+      <input class="p-input" data-f="title" value="${esc(p.title || '')}" />
+    </div>
+    <div class="proposal-row stack">
+      <span class="proposal-label">What gets stored</span>
+      <textarea class="p-textarea" data-f="content">${esc(p.content || '')}</textarea>
+    </div>
+    <div class="proposal-row">
+      <span class="proposal-label">Type</span>
+      <select class="p-select" data-f="type">
+        ${TYPE_OPTIONS.map(t => `<option value="${t}"${t === typeInit ? ' selected' : ''}>${t[0].toUpperCase() + t.slice(1)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="proposal-row">
+      <span class="proposal-label">Tags</span>
+      <input class="p-input" data-f="tags" value="${esc((p.tags || []).filter(t => t && t !== 'untagged').join(', '))}" placeholder="comma, separated" />
+    </div>
+    <div class="proposal-row">
+      <span class="proposal-label">Source</span>
+      <select class="p-select" data-f="provenance">
+        ${PROV_OPTIONS.map(([v, l]) => `<option value="${v}"${v === provInit ? ' selected' : ''}>${l}</option>`).join('')}
+      </select>
+    </div>
+    <div class="proposal-actions">
+      <button class="proposal-btn proposal-btn-primary" data-act="store">Add to twin</button>
+    </div>
+  `;
+
+  card.querySelector('[data-act="store"]').addEventListener('click', () => confirmProposal(card));
+  return card;
+}
+
+async function confirmProposal(card) {
+  const get = (f) => card.querySelector(`[data-f="${f}"]`);
+  const payload = {
+    title:       get('title').value.trim(),
+    type:        get('type').value,
+    content:     get('content').value.trim(),
+    tags:        get('tags').value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean),
+    provenance:  get('provenance').value,
+    source_type: 'voice-capture',
+  };
+  if (!payload.content) { toast('Nothing to store.'); return; }
+
+  const actions = card.querySelector('.proposal-actions');
+  actions.querySelectorAll('button').forEach(b => b.disabled = true);
+  actions.innerHTML = `<span class="proposal-done"><span class="spin"></span> Adding…</span>`;
+
+  try {
+    const result = await api('/api/twin/confirm-store', { method: 'POST', body: JSON.stringify(payload) });
+    const itemId = result.item && (result.item.id || result.item.knowledge_id);
+    card.classList.add('stored');
+    actions.innerHTML = `<span class="proposal-done">✓ In your twin ${itemId ? `· <a href="/twin/library?id=${encodeURIComponent(itemId)}">view</a>` : ''}</span>`;
+    await markPromoted(itemId);
+    setTimeout(() => closePromote(), 1600);
+  } catch (err) {
+    if (err.status === 429 && err.body?.signup_required) {
+      actions.innerHTML = `<span class="proposal-done">You've hit the free limit. <a href="/create">Sign up</a> to keep your twin.</span>`;
+    } else {
+      actions.innerHTML = `<button class="proposal-btn proposal-btn-primary" data-act="store">Try again</button>`;
+      actions.querySelector('[data-act="store"]').addEventListener('click', () => confirmProposal(card));
+      toast('Could not store that one.');
+    }
+  }
+}
+
+// First successful store marks the note as promoted and links it to the item.
+async function markPromoted(itemId) {
+  const n = state.current;
+  if (!n || n.promoted_knowledge_id || !itemId) return;
+  try {
+    const { note } = await api('/api/notes/' + encodeURIComponent(n.id), {
+      method: 'PATCH', body: JSON.stringify({ promoted_knowledge_id: itemId }),
+    });
+    state.current = note;
+    $('promoted-banner-slot').innerHTML =
+      `<div class="promoted-banner">✓ Added to your twin. <a href="/twin/library?id=${encodeURIComponent(itemId)}">Open it in your Brain →</a></div>`;
+    renderDetailActions(false);
+    loadNotes();
+  } catch { /* non-fatal — the item is stored regardless */ }
+}
+
+// ── Icons ─────────────────────────────────────────────────────────────────────
+const SVG = (p) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+function iconSpark()   { return SVG('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/>'); }
+function iconEdit()    { return SVG('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>'); }
+function iconCopy()    { return SVG('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'); }
+function iconDownload(){ return SVG('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'); }
+function iconShare()   { return SVG('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/>'); }
+function iconTrash()   { return SVG('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'); }
+function iconCheck()   { return SVG('<polyline points="20 6 9 17 4 12"/>'); }
+
+// ── Wire up ───────────────────────────────────────────────────────────────────
+// One tap to record: warm the pipeline the instant the button is pressed, then
+// start recording on release — no separate "ready" tap.
+$('open-capture').addEventListener('pointerdown', () => {
+  ensureStudio().then(s => s.prewarm()).catch(() => {});
+});
+$('open-capture').addEventListener('click', () => openCapture(true));
+$('capture-back').addEventListener('click', closeCapture);
+$('detail-back').addEventListener('click', () => showView('library'));
+$('hero-twin-link').addEventListener('click', (e) => { e.preventDefault(); window.location.href = '/twin/library'; });
+
+$('search').addEventListener('input', (e) => { state.filter = e.target.value; renderList(); });
+
+$('detail-title').addEventListener('blur', maybeSaveTitle);
+$('detail-title').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('detail-title').blur(); } });
+
+$('promote-close').addEventListener('click', closePromote);
+$('promote-modal').addEventListener('click', (e) => { if (e.target === $('promote-modal')) closePromote(); });
+document.querySelectorAll('.promote-mode button').forEach(b =>
+  b.addEventListener('click', () => switchPromoteMode(b.dataset.pmode)));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('promote-modal').hidden) closePromote(); });
+
+// Local-only test seam: lets a preview harness drive the render paths without a
+// backend. Inert in production — only attaches on localhost.
+if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+  window.__VOICE__ = {
+    state, loadNotes, renderList,
+    setNotes(n) { state.notes = n; renderList(); },
+    showDetail(note) { state.current = note; renderDetail(); showView('detail'); },
+    showPromote(proposal) {
+      state.current = state.current || { id: 'test', title: 'Test note', transcript: 'Test transcript.' };
+      $('promote-modal').hidden = false;
+      if (proposal) renderSingleProposal(Array.isArray(proposal) ? proposal[0] : proposal);
+    },
+  };
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+(async function boot() {
+  try { await ensureSession(); }
+  catch (err) { toast('Could not start a session. Refresh to try again.'); }
+  await loadNotes();
+  // Warm the transcription path's cold start (Deepgram project-id cache +
+  // serverless instance) so the first recording's token fetch is fast.
+  try {
+    fetch('/api/voice/token', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, state.token ? { 'X-Anon-Token': state.token } : {}),
+      body: JSON.stringify({ warm: true }),
+    }).catch(() => {});
+  } catch {}
+})();
+</script>
+</body>
+</html>

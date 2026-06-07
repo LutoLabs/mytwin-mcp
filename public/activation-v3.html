@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Activation v3 · MyAITwin</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,400&family=Spline+Sans+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ─────────────────────────────────────────────────────────────────────────
+     Activation v3 — material/lighting/density ported verbatim from the profile
+     hypergraph (public/profile.html). Quality bar = that page. Restraint: NO
+     text over the graph — one sub-caption beneath + hover cards only.
+     ───────────────────────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg:#05060e; --ink:#eef0ff; --dim:#8088bb; --dim-2:#565a82; --yellow:#FFD400; --line:rgba(150,160,220,0.16); }
+  html, body { height:100%; background:var(--bg); color:var(--ink); font-family:'Spline Sans Mono',ui-monospace,monospace; overflow:hidden; }
+  a { color:inherit; text-decoration:none; } button,input { font-family:inherit; color:inherit; }
+  #scene { position:fixed; inset:0; z-index:0; } #scene canvas { display:block; cursor:grab; }
+  body.grabbing #scene canvas { cursor:grabbing; }
+  #vignette { position:fixed; inset:0; z-index:1; pointer-events:none;
+    background:
+      radial-gradient(ellipse 66% 56% at 50% 44%, rgba(40,34,18,0.18) 0%, transparent 55%),
+      radial-gradient(ellipse 120% 120% at 50% 50%, transparent 40%, rgba(2,2,6,0.9) 100%); }
+
+  nav { position:fixed; top:0; left:0; right:0; z-index:20; display:flex; align-items:center; gap:16px; padding:16px 28px; }
+  .logo { display:flex; align-items:center; gap:9px; } .logo-mark { position:relative; width:22px; height:22px; }
+  .logo-mark::before { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:3px; background:#000; opacity:.5; }
+  .logo-mark::after  { content:''; position:absolute; top:0; left:0; width:20px; height:20px; border-radius:3px; background:var(--yellow); border:1.5px solid rgba(0,0,0,.6); }
+  .logo-text { display:flex; flex-direction:column; gap:1px; }
+  .logo-name { font-family:'Fraunces',Georgia,serif; font-size:1.05rem; line-height:1.1; }
+  .logo-by { font-size:7px; font-weight:600; text-transform:uppercase; letter-spacing:.2em; color:var(--dim); line-height:1; }
+  .nav-spacer { flex:1; } .counter { font-size:11px; letter-spacing:.08em; color:var(--dim); } .counter b { color:var(--ink); font-weight:500; }
+  .tabs { display:flex; gap:18px; font-size:11px; letter-spacing:.16em; } .tabs a { color:var(--dim); } .tabs a.active { color:var(--yellow); }
+
+  /* hover card (the only over-graph text, on demand) */
+  #card { position:fixed; z-index:15; min-width:150px; max-width:240px; padding:12px 14px; border-radius:12px;
+    border:1px solid var(--line); background:rgba(10,12,24,0.74); backdrop-filter:blur(14px);
+    box-shadow:0 18px 50px rgba(0,0,0,.5); pointer-events:none; opacity:0; transform:translateY(4px); transition:opacity 160ms, transform 160ms; }
+  #card.show { opacity:1; transform:translateY(0); }
+  #card .kt { font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; display:flex; align-items:center; gap:7px; }
+  #card .kt .sw { width:8px; height:8px; border-radius:50%; }
+  #card .bd { font-family:'Fraunces',Georgia,serif; font-size:14.5px; line-height:1.3; margin-top:8px; color:var(--ink); }
+
+  /* dock: sub-caption BENEATH the graph + composer + connect */
+  .dock { position:fixed; left:0; right:0; bottom:0; z-index:20; display:flex; flex-direction:column; align-items:center; gap:13px;
+    padding:0 24px 34px; background:linear-gradient(to top, rgba(5,6,14,0.92) 34%, transparent); }
+  #subcap { min-height:20px; font-family:'Fraunces',Georgia,serif; font-style:italic; font-weight:300; font-size:15px; color:var(--dim);
+    text-align:center; max-width:620px; transition:opacity 380ms ease; }
+  .composer { display:flex; align-items:center; gap:10px; width:min(620px,92vw); border:1px solid var(--line); border-radius:14px;
+    padding:9px 9px 9px 18px; background:rgba(12,14,28,0.7); backdrop-filter:blur(12px); }
+  .composer input { flex:1; background:none; border:none; outline:none; font-size:14.5px; } .composer input::placeholder { color:var(--dim-2); }
+  .composer button { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:#14140a; background:var(--yellow); border:none; border-radius:9px; padding:10px 18px; cursor:pointer; transition:box-shadow 160ms; }
+  .composer button:hover { box-shadow:0 4px 18px rgba(255,212,0,.26); }
+  .connect { display:flex; align-items:center; gap:10px; font-size:10.5px; letter-spacing:.04em; color:var(--dim-2); }
+  .connect span { color:var(--dim); } .connect button { background:none; border:none; color:var(--dim); cursor:pointer; padding:3px 5px; }
+  .connect button:hover { color:var(--ink); }
+
+  #drop { position:fixed; inset:0; z-index:30; display:none; align-items:center; justify-content:center; background:rgba(5,6,14,0.78); backdrop-filter:blur(6px); }
+  #drop.show { display:flex; } #drop .ring { border:1.5px dashed rgba(255,212,0,0.5); border-radius:22px; padding:60px 84px; font-family:'Fraunces',serif; font-style:italic; font-size:20px; }
+  #veil { position:fixed; inset:0; z-index:40; display:flex; align-items:center; justify-content:center; background:var(--bg); color:var(--dim); font-size:11px; letter-spacing:.18em; transition:opacity 700ms; } #veil.gone { opacity:0; pointer-events:none; }
+</style>
+</head>
+<body>
+  <div id="scene"></div>
+  <div id="vignette"></div>
+  <nav>
+    <div class="logo"><span class="logo-mark"></span><span class="logo-text"><span class="logo-name">MyAITwin</span><span class="logo-by">BY LUTO</span></span></div>
+    <span class="nav-spacer"></span>
+    <div class="counter">your brain · <b id="count">0</b> <span id="count-unit">items</span></div>
+    <span class="nav-spacer"></span>
+    <div class="tabs"><a class="active">TWIN</a><a>LIBRARY</a></div>
+  </nav>
+  <div id="card"><div class="kt"><span class="sw"></span><span class="kt-t"></span></div><div class="bd"></div></div>
+  <div class="dock">
+    <div id="subcap">Drop a thought, a note, or a document — or connect a source.</div>
+    <div class="composer"><input id="input" placeholder="What's on your mind?" autocomplete="off" /><button id="store">Store</button></div>
+    <div class="connect"><span>or connect</span><button data-src="Email">Email</button>·<button data-src="Notion">Notion</button>·<button data-src="Drive">Drive</button></div>
+  </div>
+  <div id="drop"><div class="ring">release to drop it in</div></div>
+  <div id="veil">forming your space…</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+  /* ── exact render spec, ported from public/profile.html renderHypergraph() ── */
+  const SPREAD = 50, JITTER = 23, GAP = 2.0, ITER = 120;
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const lerp = (a,b,t) => a + (b-a)*t;
+  const easeOut = t => 1 - Math.pow(1-t, 3);
+
+  // Profile DOMAIN_COLOR palette (jewel chroma) mapped to the 7 idle categories.
+  const CATS = [
+    { key:'skills',         label:'your skills',    color:0x00E0C6 },
+    { key:'meeting-notes',  label:'meeting notes',  color:0xFFD400 },
+    { key:'preferences',    label:'preferences',    color:0xA85CFF },
+    { key:'writing-style',  label:'writing style',  color:0x5B8CFF },
+    { key:'brand-spec',     label:'brand spec',     color:0xFF3D8B },
+    { key:'linkedin-voice', label:'LinkedIn voice', color:0xFF7A1A },
+    { key:'email-voice',    label:'email voice',    color:0x00E0C6 },
+  ];
+
+  /* ── scene / camera / lights / fog — verbatim from profile ── */
+  const sceneEl = document.getElementById('scene');
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x05060e, 0.005);
+  const camera = new THREE.PerspectiveCamera(58, innerWidth/innerHeight, 0.1, 4000);
+  camera.position.set(0, 0, 150);
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  sceneEl.appendChild(renderer.domElement);
+  scene.add(new THREE.AmbientLight(0x404a66, 1.1));
+  const keyL = new THREE.DirectionalLight(0xffffff, 1.4); keyL.position.set(1, 1.2, 1); scene.add(keyL);
+  const fillL = new THREE.DirectionalLight(0x88aaff, 0.5); fillL.position.set(-1, -0.5, -0.5); scene.add(fillL);
+  const group = new THREE.Group(); scene.add(group);
+
+  function makeHalo() {
+    const S=128, c=document.createElement('canvas'); c.width=c.height=S; const g=c.getContext('2d');
+    const grd=g.createRadialGradient(S/2,S/2,S*0.18,S/2,S/2,S/2);
+    grd.addColorStop(0,'rgba(255,255,255,0.5)'); grd.addColorStop(0.5,'rgba(255,255,255,0.12)'); grd.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=grd; g.fillRect(0,0,S,S); return new THREE.CanvasTexture(c);
+  }
+  const haloTex = makeHalo();
+  function hashVec(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0;
+    const a=(h%1000)/1000*6.283, b=((h>>>10)%1000)/1000*Math.PI;
+    return new THREE.Vector3(Math.sin(b)*Math.cos(a), Math.sin(b)*Math.sin(a), Math.cos(b)); }
+  function anchorFor(i, n){ const golden=2.399963, y=1-(i/(n-1))*2, r=Math.sqrt(Math.max(0,1-y*y)), th=golden*i;
+    return new THREE.Vector3(Math.cos(th)*r, y*0.85, Math.sin(th)*r).multiplyScalar(SPREAD); }
+
+  /* ── generate a DENSE synthetic structure (the quality of a full mind) ──
+     ~7 lobes × ~10-14 nodes, sized by degree, packed with the profile relax,
+     a faint top-2-sibling edge-web within each lobe + a few inter-lobe links. ── */
+  const STRUCT = [];     // {ci, cat, color, base:Vector3, degree, size}
+  CATS.forEach((cat, ci) => {
+    const anchor = anchorFor(ci, CATS.length);
+    const n = 10 + Math.floor((hashVec(cat.key).x * 0.5 + 0.5) * 5);  // 10-14, deterministic
+    for (let k = 0; k < n; k++) {
+      const jit = hashVec(cat.key + ':' + k).multiplyScalar(JITTER);
+      STRUCT.push({ ci, cat, color: cat.color, base: anchor.clone().add(jit), degree: 0, size: 3 });
+    }
+  });
+  // edges: each node → its 2 nearest SAME-lobe siblings (dense intra-cluster web)
+  const SEDGES = [];
+  const addEdge = (a, b, s) => { const i=Math.min(a,b), j=Math.max(a,b); if(i!==j && !SEDGES.some(e=>e.i===i&&e.j===j)) SEDGES.push({i,j,strength:s||1}); };
+  STRUCT.forEach((nd, i) => {
+    const sib = STRUCT.map((m,j)=>[j, (j!==i && m.ci===nd.ci) ? nd.base.distanceTo(m.base) : Infinity]).sort((a,b)=>a[1]-b[1]);
+    sib.slice(0,2).forEach(([j,d]) => { if (isFinite(d)) addEdge(i,j,1); });
+  });
+  // a few inter-lobe links (one hub of each lobe to the next) — connective tissue
+  for (let ci = 0; ci < CATS.length; ci++) {
+    const a = STRUCT.findIndex(n=>n.ci===ci), b = STRUCT.findIndex(n=>n.ci===(ci+1)%CATS.length);
+    if (a>=0 && b>=0) addEdge(a, b, 0.6);
+  }
+  // degree → size (exactly like profile: bigger = more-connected)
+  SEDGES.forEach(e => { STRUCT[e.i].degree++; STRUCT[e.j].degree++; });
+  const maxDeg = Math.max(1, ...STRUCT.map(n=>n.degree));
+  STRUCT.forEach(n => { n.size = 2.2 + (n.degree/maxDeg) * 2.6; });
+  // separation relax (profile O(n²)) — pack tight without overlap
+  (function relax(){
+    for (let pass=0; pass<ITER; pass++) {
+      let moved=false;
+      for (let i=0;i<STRUCT.length;i++) for (let j=i+1;j<STRUCT.length;j++) {
+        const a=STRUCT[i].base, b=STRUCT[j].base, need=STRUCT[i].size+STRUCT[j].size+GAP;
+        let dx=b.x-a.x, dy=b.y-a.y, dz=b.z-a.z, d=Math.sqrt(dx*dx+dy*dy+dz*dz);
+        if (d<1e-4){ b.x+=0.5; b.y-=0.3; b.z+=0.2; d=0.6; }
+        if (d<need){ const p=(need-d)/2, ux=dx/d,uy=dy/d,uz=dz/d; a.x-=ux*p;a.y-=uy*p;a.z-=uz*p; b.x+=ux*p;b.y+=uy*p;b.z+=uz*p; moved=true; }
+      }
+      if(!moved) break;
+    }
+  })();
+
+  /* ── build the formed meshes (hidden until reveal) — exact profile materials ── */
+  const sNodes = STRUCT.map(nd => {
+    const col = new THREE.Color(nd.color);
+    const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col.clone().multiplyScalar(0.35), roughness:0.45, metalness:0.1, transparent:true, opacity:0 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(nd.size, 32, 32), mat);
+    const hs = nd.size * 3.2;
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map:haloTex, color:col, transparent:true, blending:THREE.AdditiveBlending, opacity:0, depthWrite:false }));
+    halo.scale.set(hs, hs, 1);
+    body.position.copy(nd.base); halo.position.copy(nd.base);
+    group.add(body); group.add(halo);
+    return { nd, body, halo, mat, baseHaloOp:0.4 };
+  });
+  const _up = new THREE.Vector3(0,1,0);
+  const sEdgeMeshes = SEDGES.map(e => {
+    const blend = new THREE.Color(STRUCT[e.i].color).lerp(new THREE.Color(STRUCT[e.j].color), 0.5);
+    const r = 0.08 + e.strength*0.10, op = 0.22 + e.strength*0.25;
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 6, 1, true), new THREE.MeshBasicMaterial({ color:blend, transparent:true, opacity:0, depthWrite:false }));
+    const a=STRUCT[e.i].base, b=STRUCT[e.j].base, dir=new THREE.Vector3().subVectors(b,a), len=dir.length();
+    mesh.position.copy(a).addScaledVector(dir,0.5); mesh.scale.set(1,len,1); mesh.quaternion.setFromUnitVectors(_up, dir.clone().normalize());
+    group.add(mesh); return { e, mesh, baseOp:op };
+  });
+
+  /* ── idle ghosts: 7 translucent placeholders at the lobe anchors (NO labels —
+     identity on hover only, per the restraint rule). Drift slowly until store. ── */
+  const ghosts = CATS.map((cat, ci) => {
+    const col = new THREE.Color(cat.color);
+    const base = anchorFor(ci, CATS.length).multiplyScalar(0.62);
+    const mat = new THREE.MeshStandardMaterial({ color:col, emissive:col.clone().multiplyScalar(0.22), roughness:0.6, metalness:0.05, transparent:true, opacity:0.4 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(3.0, 24, 24), mat);
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(3.54, 16, 16), new THREE.MeshBasicMaterial({ color:col, wireframe:true, transparent:true, opacity:0.2 }));
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map:haloTex, color:col, transparent:true, blending:THREE.AdditiveBlending, opacity:0.22, depthWrite:false }));
+    halo.scale.set(9,9,1); body.position.copy(base); shell.position.copy(base); halo.position.copy(base);
+    group.add(body); group.add(shell); group.add(halo);
+    return { cat, body, shell, halo, mat, base, pos:base.clone(), ph:[Math.random()*6.28,Math.random()*6.28,Math.random()*6.28], fr:[0.8+Math.random()*0.5,0.7+Math.random()*0.5,0.9+Math.random()*0.4] };
+  });
+
+  /* ── state: IDLE → FORMED (Phase 1 reveal; Phase 2 adds the Act-1 build) ── */
+  let STATE = 'IDLE', itemCount = 0, revealT0 = 0;
+  const subcap = document.getElementById('subcap');
+  function setCap(t){ subcap.textContent = t || ''; }
+
+  function reveal() {                 // Phase 1: cross-fade ghosts out, dense structure in
+    STATE = 'FORMING'; revealT0 = performance.now();
+    setCap('building the structure of your mind…');
+  }
+  function onCapture(payload) {
+    if (STATE !== 'IDLE' && STATE !== 'LIVING') return;
+    itemCount++; const cu=document.getElementById('count-unit'); document.getElementById('count').textContent=itemCount; cu.textContent = itemCount===1?'item':'items';
+    if (itemCount === 1) reveal();
+  }
+
+  /* ── input wiring ── */
+  const input = document.getElementById('input');
+  document.getElementById('store').addEventListener('click', ()=>{ const v=input.value.trim(); if(v){ onCapture({kind:'text',text:v}); input.value=''; } });
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ const v=input.value.trim(); if(v){ onCapture({kind:'text',text:v}); input.value=''; } } });
+  document.querySelectorAll('.connect button').forEach(b=>b.addEventListener('click', ()=>onCapture({kind:'sync',source:b.dataset.src})));
+  const dropEl=document.getElementById('drop'); let dd=0;
+  addEventListener('dragenter', e=>{ e.preventDefault(); if(dd++===0) dropEl.classList.add('show'); });
+  addEventListener('dragover', e=>e.preventDefault());
+  addEventListener('dragleave', e=>{ e.preventDefault(); if(--dd<=0){ dd=0; dropEl.classList.remove('show'); } });
+  addEventListener('drop', e=>{ e.preventDefault(); dd=0; dropEl.classList.remove('show'); const f=e.dataTransfer.files&&e.dataTransfer.files[0]; const t=e.dataTransfer.getData('text'); if(f) onCapture({kind:'file',name:f.name}); else if(t&&t.trim()) onCapture({kind:'text',text:t.trim()}); });
+
+  /* ── camera drag-orbit + wheel zoom (profile feel) ── */
+  let userRotY=0, userRotX=0.12, autoYaw=0, dragging=false, lastX=0, lastY=0, tZoom=150;
+  const dom=renderer.domElement;
+  dom.addEventListener('pointerdown', e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; document.body.classList.add('grabbing'); });
+  addEventListener('pointerup', ()=>{ dragging=false; document.body.classList.remove('grabbing'); });
+  addEventListener('pointermove', e=>{ hover(e); if(!dragging) return; userRotY+=(e.clientX-lastX)*0.005; userRotX+=(e.clientY-lastY)*0.005; userRotX=Math.max(-1.3,Math.min(1.3,userRotX)); lastX=e.clientX; lastY=e.clientY; });
+  dom.addEventListener('wheel', e=>{ e.preventDefault(); tZoom=Math.max(70,Math.min(300,tZoom+e.deltaY*0.06)); }, {passive:false});
+  addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+  /* ── hover card (the only over-graph text) ── */
+  const card=document.getElementById('card'), ray=new THREE.Raycaster(), mvec=new THREE.Vector2();
+  let hovered=null;
+  function hover(e){
+    const rect=dom.getBoundingClientRect(), x=e.clientX-rect.left, y=e.clientY-rect.top;
+    mvec.x=(x/rect.width)*2-1; mvec.y=-(y/rect.height)*2+1; ray.setFromCamera(mvec,camera);
+    const pool = STATE==='IDLE' ? ghosts.map(g=>g.body) : sNodes.map(n=>n.body);
+    const hits = ray.intersectObjects(pool, false);
+    if (hits.length){
+      const obj=hits[0].object;
+      const item = STATE==='IDLE' ? ghosts.find(g=>g.body===obj) : sNodes.find(n=>n.body===obj);
+      hovered=item; card.classList.add('show');
+      card.style.left=(e.clientX+16)+'px'; card.style.top=(e.clientY+14)+'px';
+      const cat = item.cat || item.nd.cat, col='#'+new THREE.Color(cat.color).getHexString();
+      card.querySelector('.sw').style.background=col; card.querySelector('.kt-t').style.color=col;
+      card.querySelector('.kt-t').textContent = STATE==='IDLE' ? (cat.label+' · placeholder') : cat.label;
+      card.querySelector('.bd').textContent = STATE==='IDLE' ? 'waiting to be filled' : 'a piece of your '+cat.label;
+    } else { hovered=null; card.classList.remove('show'); }
+  }
+
+  /* ── animate loop ── */
+  let last=performance.now();
+  (function animate(){
+    requestAnimationFrame(animate);
+    const now=performance.now(), dt=Math.min(0.05,(now-last)/1000); last=now;
+
+    if (STATE==='IDLE'){
+      if(!reduceMotion) for(const g of ghosts){
+        g.pos.set(g.base.x+Math.sin(now*0.00009*g.fr[0]+g.ph[0])*9, g.base.y+Math.cos(now*0.00009*g.fr[1]+g.ph[1])*7, g.base.z+Math.sin(now*0.00009*g.fr[2]+g.ph[2])*9);
+        g.body.position.copy(g.pos); g.shell.position.copy(g.pos); g.halo.position.copy(g.pos);
+      }
+    } else if (STATE==='FORMING' || STATE==='LIVING'){
+      // Phase 1 reveal: fade ghosts out, dense structure in (Phase 2 replaces with the Act-1 build)
+      const p = reduceMotion ? 1 : easeOut(Math.min(1, (now-revealT0)/1100));
+      for(const g of ghosts){ g.mat.opacity=0.4*(1-p); g.shell.material.opacity=0.2*(1-p); g.halo.material.opacity=0.22*(1-p); g.body.scale.setScalar(Math.max(0.001,1-p)); g.shell.scale.setScalar(Math.max(0.001,1-p)); }
+      for(const n of sNodes){ n.mat.opacity=p; n.halo.material.opacity=n.baseHaloOp*p; }
+      for(const em of sEdgeMeshes){ em.mesh.material.opacity=em.baseOp*p; }
+      if (p>=1 && STATE==='FORMING'){ STATE='LIVING'; setCap('it found its place — it\'s part of you now.'); setTimeout(()=>{ if(STATE==='LIVING'){ subcap.textContent='add another, and watch it grow.'; } }, 2600); }
+    }
+
+    const yaw = reduceMotion?0:(STATE==='IDLE'?0.012:0.02);
+    autoYaw += dt*yaw; group.rotation.y=userRotY+autoYaw; group.rotation.x=userRotX;
+    camera.position.z += (tZoom-camera.position.z)*0.06;
+    renderer.render(scene,camera);
+  })();
+
+  setTimeout(()=>document.getElementById('veil').classList.add('gone'), 700);
+  </script>
+</body>
+</html>

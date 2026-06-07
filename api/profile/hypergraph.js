@@ -64,6 +64,61 @@ function inferDomain(tags) {
   return best;
 }
 
+// ── Domain blocks ────────────────────────────────────────────────────────────
+// The personal graph uses the curated six-domain taxonomy above. Workspace and
+// teamspace graphs instead derive their domains from their OWN tags, so org
+// content is never force-fit into a personal taxonomy (and nothing org-specific
+// is hard-coded). Colours are index-based; the client renders whatever domains
+// + colours the payload ships.
+const PALETTE = ['0xFFD400', '0x00E0C6', '0xFF3D8B', '0x5B8CFF', '0xFF7A1A', '0xA85CFF', '0x4DD0E1', '0xE6E64D'];
+function titleCase(s) { return String(s || '').replace(/[-_]+/g, ' ').replace(/\b\w/g, m => m.toUpperCase()); }
+
+function buildCuratedDomains(items) {
+  const domains = {};
+  for (const d of DOMAIN_KEYS) domains[d] = { color: DOMAIN_COLOR[d], node_ids: [] };
+  items.forEach((it, idx) => { domains[inferDomain(it.tags)].node_ids.push(idx); });
+  return domains;
+}
+
+// Cluster a graph by its own most-common tags — no baked taxonomy. The top tags
+// become domains (coloured by index); each node joins the densest top-tag it
+// carries, else an "Other" bucket.
+function buildDataDrivenDomains(items) {
+  const freq = new Map();
+  items.forEach(it => (it.tags || []).forEach(t => {
+    const k = String(t || '').toLowerCase().trim();
+    if (k) freq.set(k, (freq.get(k) || 0) + 1);
+  }));
+  const topTags = [...freq.entries()]
+    .sort((a, b) => (b[1] - a[1]) || (a[0] < b[0] ? -1 : 1))
+    .slice(0, 6)
+    .map(e => e[0]);
+  const domains = {};
+  const nameByTag = {};
+  topTags.forEach((t, i) => {
+    const name = titleCase(t);
+    nameByTag[t] = name;
+    if (!domains[name]) domains[name] = { color: PALETTE[i % PALETTE.length], node_ids: [] };
+  });
+  items.forEach((it, idx) => {
+    const tags = (it.tags || []).map(t => String(t || '').toLowerCase().trim());
+    let best = null, bestFreq = -1;
+    for (const t of tags) {
+      if (nameByTag[t] && (freq.get(t) || 0) > bestFreq) { best = t; bestFreq = freq.get(t); }
+    }
+    if (best) { domains[nameByTag[best]].node_ids.push(idx); }
+    else {
+      if (!domains['Other']) domains['Other'] = { color: PALETTE[topTags.length % PALETTE.length], node_ids: [] };
+      domains['Other'].node_ids.push(idx);
+    }
+  });
+  // Drop top-tags that ended up empty (their nodes clustered into a denser tag),
+  // so they don't consume an anchor slot.
+  Object.keys(domains).forEach(k => { if (!domains[k].node_ids.length) delete domains[k]; });
+  if (!Object.keys(domains).length) domains['All'] = { color: PALETTE[0], node_ids: items.map((_, i) => i) };
+  return domains;
+}
+
 // ── Edge computation ─────────────────────────────────────────────────────────
 // Ported from the reference: for each item, its top-2 most-similar siblings by
 // shared-tag count. Dedupe i<->j; strength = number of shared tags. Indices
@@ -112,6 +167,8 @@ export default async function handler(req, res) {
   try {
     // Resolve target workspace.
     const wsParam = (req.query?.workspace_id || '').trim?.() || req.query?.workspace_id;
+    // Optional teamspace (permission_group) scope — only meaningful within a workspace.
+    const groupParam = wsParam ? ((req.query?.group_id || '').trim?.() || req.query?.group_id || null) : null;
     let workspace;
     if (wsParam) {
       workspace = await getWorkspaceById(db, wsParam);
@@ -121,12 +178,16 @@ export default async function handler(req, res) {
       if (!workspace) return res.status(404).json({ error: 'No personal workspace' });
     }
 
-    // Resolve access + accessible items (enforces permission + tenant rules).
-    const { access, items } = await resolveAccessibleItems(db, {
+    // Resolve access + accessible items (enforces permission + tenant + teamspace rules).
+    const resolved = await resolveAccessibleItems(db, {
       requesterId: session.userId,
       workspace,
+      groupId: groupParam || null,
     });
+    const { access, items } = resolved;
     if (access === 'none') return res.status(403).json({ error: 'Forbidden' });
+    // A closed teamspace the viewer may not enter: 200 with an empty, self-describing graph.
+    const locked = !!resolved.locked;
 
     const isOwner = workspace.owner_id === session.userId;
 
@@ -152,12 +213,8 @@ export default async function handler(req, res) {
     }));
 
     // Domain block: domain -> { color, node_ids[] }. node_ids index into nodes.
-    const domains = {};
-    for (const d of DOMAIN_KEYS) domains[d] = { color: DOMAIN_COLOR[d], node_ids: [] };
-    items.forEach((it, idx) => {
-      const d = inferDomain(it.tags);
-      domains[d].node_ids.push(idx);
-    });
+    // Personal = curated taxonomy; workspace/teamspace = derived from its own tags.
+    const domains = wsParam ? buildDataDrivenDomains(items) : buildCuratedDomains(items);
 
     // Empty-state placeholders: owner-only, near-empty workspace, not dismissed.
     // Stamp the palette colour so the client renders the ghost node in-cluster.
@@ -185,6 +242,7 @@ export default async function handler(req, res) {
       edges,
       domains,
       placeholders,
+      locked,
     });
   } catch (err) {
     console.error('[profile/hypergraph] error:', err?.message);

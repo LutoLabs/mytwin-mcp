@@ -617,7 +617,7 @@ header.site-header {
   font-size: 12px; color: var(--muted); padding: 0 4px; user-select: none;
 }
 
-/* ── Contextual sections — feeds into / related ────────────────────────── */
+/* ── Contextual sections - feeds into / related ────────────────────────── */
 .detail-section {
   border-top: 1.5px solid var(--ink);
   padding-top: 24px;
@@ -796,7 +796,7 @@ header.site-header {
   float: left; color: var(--muted); pointer-events: none; height: 0;
 }
 
-/* Editable title — border reveals on hover/focus */
+/* Editable title - border reveals on hover/focus */
 #detail-title[contenteditable='true'] {
   outline: none; cursor: text;
   border-bottom: 2px solid transparent; padding-bottom: 2px;
@@ -866,7 +866,7 @@ header.site-header {
   font-size: 13px; font-weight: 500; color: var(--ink);
 }
 
-/* Block add (+) button — fixed-position, follows hovered block */
+/* Block add (+) button - fixed-position, follows hovered block */
 .block-add-btn {
   position: fixed; z-index: 100;
   width: 22px; height: 22px;
@@ -903,7 +903,7 @@ header.site-header {
   margin: -12px;
 }
 
-/* ── Surface nav — Chat / Brain / Voice (consistent with /twin) ───────── */
+/* ── Surface nav - Chat / Brain / Voice (consistent with /twin) ───────── */
 .surface-nav {
   border-bottom: 1px solid var(--line);
   background: var(--paper);
@@ -968,7 +968,7 @@ header.site-header {
 .bvt-btn:hover { color: var(--ink); }
 .bvt-btn.active { background: var(--paper); color: var(--ink); }
 
-/* ── Wiki status — honest empty / failed / compile-now ─────────────────── */
+/* ── Wiki status - honest empty / failed / compile-now ─────────────────── */
 .wiki-status {
   max-width: 1280px; margin: 0 auto;
   padding: 64px 32px; text-align: center;
@@ -997,7 +997,7 @@ header.site-header {
   font-size: 13px; color: var(--coral);
 }
 
-/* ── Embed mode — legacy; the iframe embed is retired, kept harmless ───── */
+/* ── Embed mode - legacy; the iframe embed is retired, kept harmless ───── */
 body.embed header.site-header { display: none; }
 body.embed { background: var(--paper); }
 
@@ -1091,19 +1091,18 @@ body.embed { background: var(--paper); }
     <div class="header-right">
       <a href="/create" class="signin-link" id="lib-signin-link">Sign in</a>
       <a href="/twin/profile" class="signin-link" id="lib-account-link" hidden></a>
-      <a href="/account.html" class="signin-link" id="lib-workspaces-link" hidden>Workspaces</a>
+      <a href="/twin/profile#workspaces" class="signin-link" id="lib-workspaces-link" hidden>Workspaces</a>
     </div>
   </div>
 </header>
 
-<!-- ── Surface nav — Chat / Brain / Voice, consistent with /twin. Brain is
-     this full-page Library; Chat and Voice route back into the /twin SPA so the
-     user is never stranded. ──────────────────────────────────────────────── -->
-<nav class="surface-nav" role="tablist" aria-label="Main navigation">
+<!-- Persistent action bar (replaces the old CHAT · BRAIN · VOICE toggle): the
+     three things you do with your twin, one hop from anywhere. -->
+<nav class="surface-nav" aria-label="Main actions">
   <div class="surface-nav-group">
-    <a class="main-tab" href="/twin" role="tab">Chat</a>
-    <a class="main-tab active" href="/twin/library" role="tab" aria-selected="true">Brain</a>
-    <a class="main-tab" href="/twin?surface=voice" role="tab">Voice</a>
+    <a class="main-tab" href="/twin/chat">Store &amp; Search</a>
+    <a class="main-tab" href="/voice">Voice</a>
+    <a class="main-tab active" href="/twin/library" aria-current="page">Brain</a>
   </div>
 </nav>
 
@@ -1145,21 +1144,21 @@ body.embed { background: var(--paper); }
       <div class="meta-stats">
         <div class="meta-block">
           <span class="meta-label">Items total</span>
-          <span class="meta-value" id="meta-total">–</span>
+          <span class="meta-value" id="meta-total">-</span>
           <span class="meta-detail" id="meta-types-count"></span>
         </div>
         <div class="meta-block">
           <span class="meta-label">Last added</span>
-          <span class="meta-value" id="meta-last-added">–</span>
+          <span class="meta-value" id="meta-last-added">-</span>
         </div>
         <div class="meta-block">
           <span class="meta-label">Most-used type</span>
-          <span class="meta-value" id="meta-most-used">–</span>
+          <span class="meta-value" id="meta-most-used">-</span>
           <span class="meta-detail" id="meta-most-used-count"></span>
         </div>
         <div class="meta-block">
           <span class="meta-label">Tags</span>
-          <span class="meta-value" id="meta-tags">–</span>
+          <span class="meta-value" id="meta-tags">-</span>
           <span class="meta-detail">distinct</span>
         </div>
       </div>
@@ -1185,7 +1184,7 @@ body.embed { background: var(--paper); }
   <!-- ── Wiki view: compiled concept pages (shown when Wiki is toggled) ── -->
   <div id="concepts-wrap" hidden>
     <!-- Honest status block: shown only when there are zero concept pages. It
-         never says "still compiling" forever — it reflects the real reason
+         never says "still compiling" forever - it reflects the real reason
          (too few items, a failed run, or not-built-yet) with a Compile-now. -->
     <div id="wiki-status" class="wiki-status" hidden></div>
     <section class="concept-section" id="concept-section-knowledge">
@@ -1205,7 +1204,7 @@ body.embed { background: var(--paper); }
     </section>
   </div>
 
-  <!-- Team / leaderboard view — shown when Team tab is active -->
+  <!-- Team / leaderboard view - shown when Team tab is active -->
   <section class="leaderboard-section" id="leaderboard-section" hidden>
     <div class="leaderboard-head">
       <span class="section-label">Contributors</span>
@@ -1213,7 +1212,7 @@ body.embed { background: var(--paper); }
     <div id="leaderboard-wrap"></div>
   </section>
 
-  <!-- Shared with you (P1.4) — items other people shared with this user -->
+  <!-- Shared with you (P1.4) - items other people shared with this user -->
   <section class="shared-section" id="shared-section" hidden style="margin-bottom:28px;">
     <div class="section-head">
       <span class="section-label" id="shared-label">Shared with you</span>
@@ -1221,7 +1220,7 @@ body.embed { background: var(--paper); }
     <div id="shared-grid" class="card-grid" role="list"></div>
   </section>
 
-  <!-- Shared with you (workspaces) — org workspaces this member belongs to, grouped -->
+  <!-- Shared with you (workspaces) - org workspaces this member belongs to, grouped -->
   <section class="shared-section" id="ws-shared-section" hidden style="margin-bottom:28px;">
     <div class="section-head">
       <span class="section-label" id="ws-shared-label">Shared with you</span>
@@ -1260,28 +1259,28 @@ body.embed { background: var(--paper); }
   </nav>
 
   <div class="detail-type-pill" id="detail-type-pill"></div>
-  <!-- Living document badge — shown only for is_living_document items -->
+  <!-- Living document badge - shown only for is_living_document items -->
   <div id="detail-living-badge" class="living-doc-badge" hidden
        title="This item is meant to stay current. The twin will warn you when it gets stale.">
     Living document
   </div>
-  <!-- Visibility toggle — always shown in detail view -->
+  <!-- Visibility toggle - always shown in detail view -->
   <button id="detail-vis-toggle" class="vis-toggle" title="Toggle whether this item is visible via your shared twin link">
     🔒 Private
   </button>
-  <!-- Share control (P1.4) — person-to-person item sharing by email -->
+  <!-- Share control (P1.4) - person-to-person item sharing by email -->
   <button id="detail-share-btn" class="vis-toggle" title="Share this item with another person by email">
     👤 Share
   </button>
-  <!-- Contribute control (P2 S-F) — copy this item into an org workspace -->
+  <!-- Contribute control (P2 S-F) - copy this item into an org workspace -->
   <button id="detail-contribute-btn" class="vis-toggle" title="Contribute this item to an organisation workspace">
     🏢 Contribute
   </button>
-  <!-- Edit / Done toggle — only shown for the item owner -->
+  <!-- Edit / Done toggle - only shown for the item owner -->
   <button id="detail-edit-btn" class="vis-toggle vis-edit-btn" title="Edit this document" hidden>
     ✏ Edit
   </button>
-  <button id="detail-done-btn" class="vis-toggle vis-done-btn" title="Done editing — return to read view" hidden>
+  <button id="detail-done-btn" class="vis-toggle vis-done-btn" title="Done editing, return to read view" hidden>
     ✓ Done
   </button>
   <h1 class="detail-title" id="detail-title"></h1>
@@ -1291,7 +1290,7 @@ body.embed { background: var(--paper); }
   </button>
   <span id="editor-save-status" class="editor-save-status" aria-live="polite"></span>
 
-  <!-- Part navigation — shown only for multi-part documents -->
+  <!-- Part navigation - shown only for multi-part documents -->
   <div id="detail-parts" hidden></div>
 
   <div class="detail-tags" id="detail-tags"></div>
@@ -1313,7 +1312,7 @@ body.embed { background: var(--paper); }
 
   <div class="detail-source" id="detail-source" hidden></div>
 
-  <!-- Version history — shown only when version_number > 1 -->
+  <!-- Version history - shown only when version_number > 1 -->
   <div id="detail-version-history" class="version-history" hidden>
     <p class="version-history-label">Version history</p>
     <div id="version-list" class="version-list"></div>
@@ -1345,7 +1344,7 @@ const state = {
   visibilityFilter: null,  // null = all, 'private', 'sharable'
   brainView:       'library', // 'library' (raw items) | 'wiki' (compiled pages)
   conceptData:     null,      // cached /api/library/concepts response
-  workspaceShares:    [],     // [{ workspace, items }] — org workspaces shared with this user
+  workspaceShares:    [],     // [{ workspace, items }] - org workspaces shared with this user
   hasWorkspaceShares: false,
   // Inline editor
   editor:           null,
@@ -1366,7 +1365,7 @@ function el(tag, cls, text) {
 }
 
 function relativeTime(iso) {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const diff = Date.now() - new Date(iso).getTime();
   const min = 60000, hr = 3600000, day = 86400000, wk = 604800000, mo = 2592000000;
   if (diff < min)       return 'just now';
@@ -1397,7 +1396,7 @@ function downloadAsMarkdown(item) {
     '',
     `Type: ${item.type || 'knowledge'}`,
     `Added: ${longDate(item.created_at)}`,
-    `Tags: ${(item.tags || []).filter(t => t && t !== 'untagged').join(', ') || '—'}`,
+    `Tags: ${(item.tags || []).filter(t => t && t !== 'untagged').join(', ') || '-'}`,
   ];
   if (item.source_ref && item.source_ref !== 'source not recorded' && item.source_ref.trim()) {
     lines.push(`Source: ${item.source_ref}`);
@@ -1425,13 +1424,13 @@ function snippet(content, max = 120) {
     .replace(/#{1,6}\s+/g, '')                   // markdown headings
     .replace(/\*{1,2}([^*\n]*)\*{1,2}/g, '$1')  // bold / italic
     .replace(/`([^`]*)`/g, '$1')                 // inline code
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')     // links — keep label text
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')     // links - keep label text
     .replace(/[|]+/g, ' ')                        // pipe chars (tables, PPTX artifacts)
     .replace(/\s{2,}/g, ' ')                      // collapse whitespace
     .replace(/\n+/g, ' ')                         // newlines → space
     .replace(/^\W+/, '')                          // strip leading non-word characters
     .trim();
-  return text.length > max ? text.slice(0, max) + '…' : text || '—';
+  return text.length > max ? text.slice(0, max) + '…' : text || '-';
 }
 
 function cardTitle(item) {
@@ -1858,7 +1857,7 @@ function renderStats(stats) {
   eid('meta-total').textContent         = stats.totalItems + ' items';
   eid('meta-types-count').textContent   = 'Across ' + types + ' type' + (types !== 1 ? 's' : '');
   eid('meta-last-added').textContent    = relativeTime(stats.lastAddedAt);
-  eid('meta-most-used').textContent     = stats.mostUsedType ? typeLabel(stats.mostUsedType.type) : '—';
+  eid('meta-most-used').textContent     = stats.mostUsedType ? typeLabel(stats.mostUsedType.type) : '-';
   eid('meta-most-used-count').textContent = stats.mostUsedType ? stats.mostUsedType.count + ' items' : '';
   eid('meta-tags').textContent          = stats.totalTags;
   // The "Items · N" label is owned by renderItemsSection, which knows the
@@ -1941,7 +1940,7 @@ function makeConceptCard(page) {
   card.appendChild(el('p', 'concept-card-summary', page.summary));
 
   const foot = el('div', 'concept-card-foot');
-  // Agent-maintained marker — these are compiled, not human-authored.
+  // Agent-maintained marker - these are compiled, not human-authored.
   foot.appendChild(el('span', null, '✦ Agent-maintained'));
   foot.appendChild(el('span', 'card-meta-sep', '·'));
   foot.appendChild(el('span', null, (page.source_ids || []).length + ' sources'));
@@ -1970,7 +1969,7 @@ function renderConceptGrid(pages, gridId) {
 
 // Fetch the compiled concept pages and render the Wiki view's contents. Whether
 // the Wiki view is visible is controlled by the Wiki/Library toggle
-// (setBrainView); this only fills it in. We never "fail silently" — a fetch
+// (setBrainView); this only fills it in. We never "fail silently" - a fetch
 // failure surfaces an honest message in the Wiki status block.
 async function loadConceptSections() {
   try {
@@ -1984,7 +1983,7 @@ async function loadConceptSections() {
 }
 
 // Decide between showing compiled pages and an honest status block. The status
-// block only appears when there are zero pages — it never claims "still
+// block only appears when there are zero pages - it never claims "still
 // compiling" indefinitely; it reflects the real reason and offers Compile-now.
 function renderWikiState(data) {
   const wrap     = eid('concepts-wrap');
@@ -2051,7 +2050,7 @@ function renderWikiStatus(container, data) {
 }
 
 // Drives the on-demand, observable compile. Awaits the synchronous endpoint and
-// surfaces success or a real error — never leaves the user on a dead screen.
+// surfaces success or a real error - never leaves the user on a dead screen.
 async function runCompileNow(btn, container) {
   btn.disabled = true;
   btn.textContent = 'Compiling…';
@@ -2132,7 +2131,7 @@ function makeCard(item) {
     meta.appendChild(el('span', 'card-meta-sep', '·'));
     meta.appendChild(el('span', 'vis-badge vis-sharable', '🔗 Shared'));
   }
-  // Upvote button — only shown when the user is signed in (token present)
+  // Upvote button - only shown when the user is signed in (token present)
   if (state.token || document.cookie.includes('sb-')) {
     meta.appendChild(el('span', 'card-meta-sep', '·'));
     meta.appendChild(makeUpvoteButton(item));
@@ -2195,7 +2194,7 @@ function makeSharedCard(item) {
 // contributed to it. Everything is gated server-side: /api/workspaces returns
 // only the user's workspaces, and /api/workspaces/:id/items returns only items
 // the caller is entitled to (membership + group-restriction filter). The client
-// only renders what the scoped payload returns — it never filters for security.
+// only renders what the scoped payload returns - it never filters for security.
 async function loadWorkspaceShares() {
   const section = eid('ws-shared-section');
   const wrap    = eid('ws-shared-wrap');
@@ -2275,7 +2274,7 @@ function makeWorkspaceItemCard(item, workspace) {
   meta.appendChild(el('span', 'vis-badge vis-readonly', '👁 View only'));
   card.appendChild(meta);
 
-  // Read-only open — NEVER routes through loadDetail/fetchItem (that hits the
+  // Read-only open - NEVER routes through loadDetail/fetchItem (that hits the
   // member's own tenant and would 404 on a cross-tenant workspace item).
   const open = () => openWorkspaceItem(item, workspace);
   card.addEventListener('click', open);
@@ -2301,7 +2300,7 @@ function openWorkspaceItem(item, workspace) {
   eid('detail-version-history').hidden = true;
   eid('detail-living-badge').hidden = true;
 
-  // Hard-disable every owner/mutation affordance — this is a view-only surface.
+  // Hard-disable every owner/mutation affordance - this is a view-only surface.
   ['detail-vis-toggle','detail-share-btn','detail-contribute-btn','detail-edit-btn','detail-done-btn','detail-download-btn']
     .forEach(bid => { const b = eid(bid); if (b) { b.hidden = true; b.onclick = null; } });
 
@@ -2312,7 +2311,7 @@ function openWorkspaceItem(item, workspace) {
   if (eid('bc-title')) eid('bc-title').textContent = cardTitle(item);
   eid('detail-title').textContent = cardTitle(item);
 
-  // Meta row — make the shared provenance explicit.
+  // Meta row - make the shared provenance explicit.
   eid('detail-meta-row').textContent = [
     'Shared in ' + (workspace.name || 'workspace'),
     item.contributor_email ? 'by ' + item.contributor_email : 'by a member',
@@ -2521,7 +2520,7 @@ async function loadDetail(id) {
     '<p class="detail-related-loading">Finding related items…</p>';
 
   try {
-    // Phase 1: Fast DB fetch — item + siblings + concept pages
+    // Phase 1: Fast DB fetch - item + siblings + concept pages
     const { item, siblings, concept_pages } = await fetchItem(id);
     state.currentItem = item;
 
@@ -2556,9 +2555,11 @@ async function loadDetail(id) {
       }
     }
     syncVisBtn(currentVis);
-    // Share control (P1.4): open the person-to-person share modal for this item.
+    // Share control: open the unified share modal (email invite + public link).
     const shareBtn = eid('detail-share-btn');
-    if (shareBtn) shareBtn.onclick = () => openShareModal(item.id, cardTitle(item));
+    if (shareBtn) shareBtn.onclick = () => (window.LutoShare
+      ? window.LutoShare.open({ resourceType: 'item', resourceId: item.id, title: cardTitle(item) })
+      : openShareModal(item.id, cardTitle(item)));
     const contribBtn = eid('detail-contribute-btn');
     if (contribBtn) contribBtn.onclick = () => openContributeModal(item.id, cardTitle(item));
     visBtn.onclick = async () => {
@@ -2576,7 +2577,7 @@ async function loadDetail(id) {
 
     eid('detail-title').textContent = cardTitle(item);
 
-    // Meta row — include version if > 1
+    // Meta row - include version if > 1
     const metaParts = [
       'Added ' + longDate(item.created_at),
       typeLabel(item.type),
@@ -2587,7 +2588,7 @@ async function loadDetail(id) {
     }
     eid('detail-meta-row').textContent = metaParts.join('  ·  ');
 
-    // Download button — wire up to client-side markdown export
+    // Download button - wire up to client-side markdown export
     const dlBtn = eid('detail-download-btn');
     dlBtn.hidden = false;
     dlBtn.onclick = () => downloadAsMarkdown(item);
@@ -2601,7 +2602,7 @@ async function loadDetail(id) {
       tagsEl.appendChild(el('span', 'tag-chip', t));
     });
 
-    // Content — render clean read-only HTML; editor only activates on Edit click.
+    // Content - render clean read-only HTML; editor only activates on Edit click.
     eid('detail-content').innerHTML = renderMarkdown(item.content || '');
 
     // Wire up Edit / Done buttons (owner only, not embed / shared-twin view).
@@ -2642,16 +2643,16 @@ async function loadDetail(id) {
       src.hidden = false;
     }
 
-    // Phase 2a: Async — related items via Pinecone (non-blocking)
+    // Phase 2a: Async - related items via Pinecone (non-blocking)
     fetchRelated(id)
       .then(({ related }) => renderRelatedSection(related))
       .catch(() => { eid('detail-related-section').hidden = true; });
 
-    // Phase 2b: Async — version history (only shown when version_number > 1)
+    // Phase 2b: Async - version history (only shown when version_number > 1)
     if ((item.version_number || 1) > 1) {
       fetchVersions(id)
         .then(({ versions }) => renderVersionHistory(id, item, versions))
-        .catch(() => { /* non-fatal — version history is supplementary */ });
+        .catch(() => { /* non-fatal - version history is supplementary */ });
     }
 
   } catch (err) {
@@ -2672,7 +2673,7 @@ function renderVersionHistory(itemId, currentItem, versions) {
   const section = eid('detail-version-history');
   list.innerHTML = '';
 
-  // Current version row (no restore button — it's already current)
+  // Current version row (no restore button - it's already current)
   const currentRow = buildVersionRow({
     version_number: currentItem.version_number || 1,
     title:          cardTitle(currentItem),
@@ -2681,7 +2682,7 @@ function renderVersionHistory(itemId, currentItem, versions) {
   });
   list.appendChild(currentRow);
 
-  // Historical versions — newest first
+  // Historical versions - newest first
   for (const v of versions) {
     const row = buildVersionRow({
       version_number: v.version_number,
@@ -2849,7 +2850,7 @@ function scheduleAutosave() {
 }
 
 function destroyEditor() {
-  // Pure teardown — does NOT save. Callers are responsible for flushing
+  // Pure teardown - does NOT save. Callers are responsible for flushing
   // pending saves before calling this (see showView, exitEditor).
   clearTimeout(_saveTimer);
   if (state.editor) {
@@ -2858,7 +2859,7 @@ function destroyEditor() {
   }
   state.currentItemId    = null;
   state.currentItemTitle = null;
-  // NOTE: state.currentItem intentionally kept — download btn may still need it.
+  // NOTE: state.currentItem intentionally kept - download btn may still need it.
 
   // Retract block + button
   if (_blockAddBtn) {
@@ -3190,7 +3191,7 @@ async function initEditor(itemId, markdownContent, titleText) {
     titleEl.addEventListener('blur',  () => { clearTimeout(_saveTimer); performSave(); });
   }
 
-  // ── Download button — use live editor content ──────────────────────────
+  // ── Download button - use live editor content ──────────────────────────
   const dlBtn = eid('detail-download-btn');
   if (dlBtn) {
     dlBtn.onclick = () => {
@@ -3205,7 +3206,7 @@ async function initEditor(itemId, markdownContent, titleText) {
         '',
         'Type: '       + (itm.type || 'knowledge'),
         'Added: '      + longDate(itm.created_at || ''),
-        'Tags: '       + ((itm.tags || []).filter(t => t && t !== 'untagged').join(', ') || '—'),
+        'Tags: '       + ((itm.tags || []).filter(t => t && t !== 'untagged').join(', ') || '-'),
       ];
       if (itm.source_ref && itm.source_ref !== 'source not recorded' && itm.source_ref.trim()) {
         lines.push('Source: ' + itm.source_ref);
@@ -3220,7 +3221,7 @@ async function initEditor(itemId, markdownContent, titleText) {
     };
   }
 
-  console.log('[editor] ready — item', itemId);
+  console.log('[editor] ready, item', itemId);
 }
 
 // Graceful exit: save, destroy editor, re-render clean read view, swap buttons.
@@ -3315,7 +3316,7 @@ async function syncHeaderAuth() {
   const isEmbed = new URLSearchParams(location.search).has('embed');
   state.token = localStorage.getItem(STORAGE_KEY);
   if (!state.token && !isEmbed) {
-    // No anon token and not embedded — send to /twin where a session is created.
+    // No anon token and not embedded - send to /twin where a session is created.
     // When embedded, skip the redirect: the session cookie handles auth.
     location.replace('/twin');
     return;
@@ -3326,13 +3327,18 @@ async function syncHeaderAuth() {
   }
 
   const params = new URLSearchParams(location.search);
-  // Optional deep link straight to the Wiki view; Library is the default.
-  state.brainView = params.get('view') === 'wiki' ? 'wiki' : 'library';
+  // Deep links (used by the home's Explore chips): ?view=wiki|team selects a
+  // sub-view (Library is the default); ?type=<type> lands on a filtered Library.
+  const view = params.get('view');
+  state.brainView = (view === 'wiki' || view === 'team') ? view : 'library';
+  const typeParam = params.get('type');
+  if (typeParam) { state.filter = typeParam; state.brainView = 'library'; }
 
   const id = params.get('id');
   if (id) await loadDetail(id);
   else    await loadIndex();
 })();
 </script>
+<script src="/share-modal.js"></script>
 </body>
 </html>

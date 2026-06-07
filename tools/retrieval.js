@@ -1,8 +1,10 @@
 import { getDB } from '../lib/supabase.js';
-import { getNamespace } from '../lib/pinecone.js';
+import { getNamespace, getCanonNamespace } from '../lib/pinecone.js';
 import { embed } from '../lib/embed.js';
 import { formatDisplayRef } from '../lib/display-ref.js';
 import { getAccessibleSharedItems, getMemberWorkspaces } from '../lib/permissions.js';
+import { CANON_MIN_SCORE, CANON_MAX_HITS, CANON_QUERY_TOP_K } from '../lib/canon.js';
+import { hashChunk } from '../lib/content-hash.js';
 
 // ── Token frugality ──────────────────────────────────────────────────────────
 // Anthropic policy: retrieval responses must be proportionate to the task.
@@ -13,6 +15,7 @@ const MAX_SUMMARY_CHARS     = 280;   // one-line summary in search payloads
 const MAX_SYNTHESIS_ITEMS   = 10;
 const MAX_SYNTHESIS_CONTENT = 1500;  // per-item content trim in synthesis
 const MAX_TYPE_TAG_LIMIT    = 20;    // get_by_type / get_by_tag
+const PARENT_SCORE_WEIGHT   = 0.75;  // down-weight whole-document parent vectors in ranking
 
 function oneLineSummary(text) {
   if (!text) return '';
@@ -74,18 +77,55 @@ async function queryWorkspaceNamespaces(memberWs, embedding, baseFilter, topK) {
   return (await Promise.all(queries)).flat();
 }
 
-// Merge match lists, rank by score desc, dedupe by knowledge_id, cap to `limit`.
-// An item id is either own or shared (a vector lives in exactly one namespace),
-// so dedupe never collides across the trust boundary.
+// The shared canon namespace (Eleusis self-knowledge + worldview) is merged into
+// EVERY tenant's retrieval. Two guards keep it in its lane: a cosine score floor
+// so canon stays quiet unless the turn is genuinely about the twin / product /
+// worldview, and a hard hit cap so canon can never crowd out the user's own
+// material. A failing canon query never breaks the user's own search.
+async function queryCanonNamespace(embedding, baseFilter, topK) {
+  return getCanonNamespace().query({
+    vector: embedding,
+    topK,
+    includeMetadata: true,
+    filter: baseFilter && Object.keys(baseFilter).length ? baseFilter : undefined,
+  })
+    .then(r => (r.matches || [])
+      .filter(m => (m.score || 0) >= CANON_MIN_SCORE)
+      .slice(0, CANON_MAX_HITS))
+    .catch(e => {
+      console.error('[retrieval] canon namespace query failed:', e.message);
+      return [];
+    });
+}
+
+// Effective ranking score. Parent (whole-document summary) vectors are gently
+// down-weighted so a literal chunk match normally outranks the document's gist —
+// the parent still surfaces for broad / whole-document queries, but never floods
+// unrelated searches.
+function effectiveScore(m) {
+  const s = m.score || 0;
+  return m.metadata?.is_document_parent ? s * PARENT_SCORE_WEIGHT : s;
+}
+
+// Merge match lists, rank by (weighted) score desc, dedupe by knowledge_id AND by
+// content_hash, cap to `limit`. An item id is either own or shared (a vector lives
+// in exactly one namespace), so id dedupe never collides across the trust
+// boundary. The content_hash pass collapses identical chunk text stored under
+// different ids (e.g. the same document ingested more than once) so one answer
+// never shows the same passage twice.
 function rankDedupeMatches(matchLists, limit) {
   const merged = matchLists.flat().filter(m => m.metadata?.knowledge_id);
-  merged.sort((a, b) => (b.score || 0) - (a.score || 0));
-  const seen = new Set();
+  merged.sort((a, b) => effectiveScore(b) - effectiveScore(a));
+  const seenIds  = new Set();
+  const seenHash = new Set();
   const top = [];
   for (const m of merged) {
     const kid = m.metadata.knowledge_id;
-    if (seen.has(kid)) continue;
-    seen.add(kid);
+    if (seenIds.has(kid)) continue;
+    const hash = m.metadata.content_hash;
+    if (hash && seenHash.has(hash)) continue;
+    seenIds.add(kid);
+    if (hash) seenHash.add(hash);
     top.push(m);
     if (limit && top.length >= limit) break;
   }
@@ -108,7 +148,7 @@ export async function searchTwin(ctx, { query, top_k = 10, type }) {
   // namespaces this user is a member of, all in parallel.
   const shared   = await getAccessibleSharedItems(ctx);
   const memberWs = await getMemberWorkspaces(ctx);
-  const [ownRes, sharedMatches, wsMatches] = await Promise.all([
+  const [ownRes, sharedMatches, wsMatches, canonMatches] = await Promise.all([
     getNamespace(ctx.tenantId).query({
       vector: embedding,
       topK: k,
@@ -117,6 +157,7 @@ export async function searchTwin(ctx, { query, top_k = 10, type }) {
     }),
     querySharedNamespaces(shared, embedding, type ? { type } : {}, k),
     queryWorkspaceNamespaces(memberWs, embedding, type ? { type } : {}, k),
+    queryCanonNamespace(embedding, ownFilter, CANON_QUERY_TOP_K),
   ]);
 
   // Phase 3: drop workspace items this user is denied by a group restriction.
@@ -125,18 +166,23 @@ export async function searchTwin(ctx, { query, top_k = 10, type }) {
     ? wsMatches.filter(m => !deniedItemIds.has(m.metadata?.knowledge_id))
     : wsMatches;
 
-  const top = rankDedupeMatches([ownRes.matches || [], sharedMatches, wsMatchesAllowed], k);
+  const top = rankDedupeMatches([ownRes.matches || [], sharedMatches, wsMatchesAllowed, canonMatches], k);
   if (!top.length) return { results: [], query, count: 0 };
 
   // Workspace items are the ones whose vector carried a workspace_id (only the
-  // contribution path sets it). A vector lives in exactly one namespace, so
-  // own / shared / workspace id sets never overlap.
-  const wsItemIds = new Set(wsMatchesAllowed.map(m => m.metadata?.knowledge_id).filter(Boolean));
+  // contribution path sets it). Canon items come from the shared canon namespace.
+  // A vector lives in exactly one namespace, so own / shared / workspace / canon
+  // id sets never overlap. Pulling canon out of ownIds is required: canon rows
+  // live in the system tenant, so the own-items fetch (user/tenant-scoped) would
+  // otherwise drop them.
+  const wsItemIds    = new Set(wsMatchesAllowed.map(m => m.metadata?.knowledge_id).filter(Boolean));
+  const canonItemIds = new Set(canonMatches.map(m => m.metadata?.knowledge_id).filter(Boolean));
 
   const topIds    = top.map(m => m.metadata.knowledge_id);
-  const sharedIds = topIds.filter(id => shared.idSet.has(id));
-  const wsIds     = topIds.filter(id => wsItemIds.has(id) && !shared.idSet.has(id));
-  const ownIds    = topIds.filter(id => !shared.idSet.has(id) && !wsItemIds.has(id));
+  const canonIds  = topIds.filter(id => canonItemIds.has(id));
+  const sharedIds = topIds.filter(id => shared.idSet.has(id) && !canonItemIds.has(id));
+  const wsIds     = topIds.filter(id => wsItemIds.has(id) && !shared.idSet.has(id) && !canonItemIds.has(id));
+  const ownIds    = topIds.filter(id => !shared.idSet.has(id) && !wsItemIds.has(id) && !canonItemIds.has(id));
 
   const rowMap = {};
   if (ownIds.length) {
@@ -157,14 +203,32 @@ export async function searchTwin(ctx, { query, top_k = 10, type }) {
     const { data: wsRows } = await db.from('knowledge').select('*').in('id', wsIds);
     for (const r of wsRows || []) rowMap[r.id] = { row: r, workspace: true, workspace_id: r.workspace_id };
   }
+  if (canonIds.length) {
+    // Canon rows live in the system tenant. Fetch by id across the boundary, like
+    // shared/workspace — canon is authorised for every tenant by design, so no
+    // user/tenant/visibility filter applies.
+    const { data: canonRows } = await db.from('knowledge').select('*').in('id', canonIds);
+    for (const r of canonRows || []) rowMap[r.id] = { row: r, canon: true };
+  }
 
+  const seenContentHash = new Set();
   const items = top
     .map(m => {
       const entry = rowMap[m.metadata.knowledge_id];
       if (!entry) return null;
-      const { row, shared: isShared, level, workspace: isWs } = entry;
+      const { row, shared: isShared, level, workspace: isWs, canon: isCanon } = entry;
+      // Belt-and-braces content dedupe: collapse identical chunk text even when
+      // the vectors predate content_hash metadata (duplicate ingests not yet
+      // backfilled). rankDedupeMatches already handles the metadata-tagged case.
+      const ch = row.content_hash || hashChunk(row.content || '');
+      if (seenContentHash.has(ch)) return null;
+      seenContentHash.add(ch);
+      // Whole-document grouping: carry the document id + chunk position so the
+      // caller can expand to the full document via get_document.
+      const documentId = m.metadata.document_id || row.source_id || null;
+      const isParent   = !!m.metadata.is_document_parent || row.chunk_index === 0;
       // Search payload is summary-only: title, type, one-line summary, source,
-      // date, tags. Full content is reachable via list_recent / update_knowledge.
+      // date, tags. Full content is reachable via list_recent / get_document.
       return {
         id: row.id,
         type: row.type,
@@ -176,6 +240,10 @@ export async function searchTwin(ctx, { query, top_k = 10, type }) {
         shared: !!isShared,
         ...(isShared ? { access_level: level } : {}),
         ...(isWs ? { workspace: true, workspace_id: entry.workspace_id } : {}),
+        ...(isCanon ? { canon: true } : {}),
+        ...(documentId ? { document_id: documentId, expandable: true } : {}),
+        ...(row.chunk_index != null ? { chunk_index: row.chunk_index } : {}),
+        ...(isParent ? { is_document_parent: true } : {}),
       };
     })
     .filter(Boolean);
@@ -280,6 +348,58 @@ export async function getByTag(ctx, { tag, limit = 20 }) {
       shared: !!isShared,
       ...(isShared ? { access_level: level } : {}),
     })),
+  };
+}
+
+// ── get_document ──────────────────────────────────────────────────────────────
+//
+// Whole-document expand. Given a document_id (== sources.id, as carried on
+// search_twin results), returns the parent summary, the raw full text (the
+// source-of-truth layer), and every chunk in chunk_index order — the reassembled
+// document. Tenant-scoped: a user can only expand a document in their own tenant.
+export async function getDocument(ctx, { document_id }) {
+  if (!document_id || typeof document_id !== 'string') {
+    throw new Error('document_id is required.');
+  }
+  const db = getDB();
+
+  const { data: source, error: srcErr } = await db
+    .from('sources')
+    .select('id, reference, summary, full_text, source_type, item_count, ingested_at')
+    .eq('id', document_id).eq('tenant_id', ctx.tenantId)
+    .maybeSingle();
+  if (srcErr) console.error('[retrieval] get_document source lookup failed:', srcErr.message);
+  if (!source) return { found: false, document_id };
+
+  let q = db.from('knowledge')
+    .select('id, title, content, chunk_index, type, tags, visibility, created_at')
+    .eq('tenant_id', ctx.tenantId).eq('source_id', document_id)
+    .order('chunk_index', { ascending: true });
+  if (ctx.visibilityFilter === 'sharable') q = q.eq('visibility', 'sharable');
+  const { data: rows } = await q;
+
+  const all    = rows || [];
+  const parent = all.find(r => r.chunk_index === 0) || null;
+  const parts  = all
+    .filter(r => r.chunk_index == null || r.chunk_index >= 1)
+    .sort((a, b) => (a.chunk_index || 0) - (b.chunk_index || 0));
+
+  // On the legacy sharable-MCP surface the raw full_text is not visibility-scoped,
+  // so withhold it and reassemble only from the sharable parts.
+  const onSharable   = ctx.visibilityFilter === 'sharable';
+  const fullText     = onSharable ? null : (source.full_text || null);
+  const reassembled  = fullText || parts.map(p => p.content).join('\n\n');
+
+  return {
+    found:       true,
+    document_id: source.id,
+    title:       source.reference,
+    summary:     parent?.content || source.summary || '',
+    source_type: source.source_type,
+    part_count:  parts.length,
+    parts:       parts.map(p => ({ chunk_index: p.chunk_index, title: p.title, content: p.content })),
+    full_text:   fullText,
+    reassembled,
   };
 }
 

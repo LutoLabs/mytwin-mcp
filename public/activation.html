@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Activation — pieces assemble · MyAITwin</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Faithful to activation-reference-prototype.html (material/lighting/camera/
+     timing/easing) + the clarity layer Piotr asked for: regions are LABELLED,
+     the added piece is LABELLED with the user's own words, and the seed renders
+     ON TOP so it is never buried. Clarity wins over sophistication (P14), calm
+     premium register, "it found its place" (the being-understood payoff). */
+  html,body{height:100%;margin:0}
+  body{background:radial-gradient(ellipse at 50% 42%, #0d1018 0%, #06070b 80%);color:#ECE7DA;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;flex-direction:column;min-height:100%;}
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:16px 26px;color:#7e8597;font-size:13px;font-family:'Fraunces',Georgia,serif;}
+  .bar .logo{color:#ECE7DA;font-weight:600;font-size:16px;}
+  .bar .logo small{color:#7e8597;font-weight:400;font-size:10px;letter-spacing:.12em;}
+  #stage{position:relative;flex:1;min-height:0;}
+  #canvas{display:block;width:100%;height:100%;}
+  /* region labels (quiet, depth-faded — clarity without clutter) */
+  #labels{position:absolute;inset:0;pointer-events:none;}
+  .rlabel{position:absolute;transform:translate(-50%,-50%);font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;
+    color:#aeb6c8;opacity:0;transition:opacity .5s ease;text-shadow:0 1px 10px rgba(0,0,0,.8);}
+  /* the added piece's label — the user's own words, the brightest text */
+  #seedcard{position:absolute;transform:translate(-50%,0);pointer-events:none;opacity:0;transition:opacity .45s ease;text-align:center;max-width:300px;}
+  #seedcard .txt{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:15px;color:#FFF7E6;text-shadow:0 2px 16px rgba(0,0,0,.85);line-height:1.3;}
+  #seedcard .reg{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#FFC65A;margin-top:6px;}
+  #cap{text-align:center;font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:16px;color:#8b91a3;min-height:22px;margin:4px 0 16px;transition:opacity .35s ease;}
+  .row{display:flex;gap:10px;max-width:520px;margin:0 auto;width:90%;}
+  input{flex:1;background:#161a24;border:1px solid rgba(255,255,255,.10);border-radius:13px;color:#ECE7DA;font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:15px;padding:13px 16px;outline:none;}
+  input::placeholder{color:#6b7180;}
+  button{background:#FFC65A;color:#2a2107;border:0;border-radius:13px;font-size:14px;font-weight:600;padding:0 20px;cursor:pointer;min-width:92px;}
+  button:disabled{opacity:.5;}
+  .connect{text-align:center;margin:11px 0 26px;font-size:13px;color:#5f6473;font-family:'Fraunces',Georgia,serif;}
+  .connect span{color:#8b91a3;}
+</style>
+</head>
+<body>
+  <div class="bar"><span class="logo">MyAITwin <small>BY LUTO</small></span><span id="count">your brain · 0 items</span></div>
+  <div id="stage"><canvas id="canvas"></canvas><div id="labels"></div><div id="seedcard"><div class="txt"></div><div class="reg"></div></div></div>
+  <div id="cap">loose pieces of you, waiting — add a thought to bring them together.</div>
+  <div class="row">
+    <input id="inp" type="text" placeholder="What's on your mind?" autocomplete="off"/>
+    <button id="btn">STORE</button>
+  </div>
+  <div class="connect">or connect &nbsp;<span>Email</span> · <span>Notion</span> · <span>Drive</span></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  function start(){ if(!window.THREE){return setTimeout(start,60);} init(); }
+  function init(){
+    var stage=document.getElementById('stage'), canvas=document.getElementById('canvas');
+    var cap=document.getElementById('cap'), inp=document.getElementById('inp'),
+        btn=document.getElementById('btn'), countEl=document.getElementById('count'),
+        labelsEl=document.getElementById('labels'), seedCard=document.getElementById('seedcard');
+    var W=stage.clientWidth,H=stage.clientHeight;
+    var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true,alpha:true});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio,2)); renderer.setSize(W,H,false);
+    var scene=new THREE.Scene();
+    var camera=new THREE.PerspectiveCamera(45,W/H,0.1,100); camera.position.set(0,0,8.4);
+    scene.add(new THREE.AmbientLight(0x44506a,0.7));
+    var key=new THREE.DirectionalLight(0xffffff,0.95); key.position.set(-4,5,6); scene.add(key);
+    var fill=new THREE.DirectionalLight(0x88a0ff,0.25); fill.position.set(4,-2,3); scene.add(fill);
+    var group=new THREE.Group(); scene.add(group);
+    // 7 clusters, each a labelled region of the twin (from Piotr's note cb54290f)
+    var clusters=[
+      {c:0x3FE0D0,ctr:[-2.4,0.9,0.0],n:12,label:'your skills'},
+      {c:0xF5C518,ctr:[0.2,1.8,-0.3],n:12,label:'meeting notes'},
+      {c:0xE0457A,ctr:[0.5,0.2,0.6],n:9, label:'preferences'},
+      {c:0x9B5CF0,ctr:[-0.5,-1.5,0.2],n:13,label:'writing style'},
+      {c:0x5B8DEF,ctr:[2.4,-0.2,-0.2],n:13,label:'brand spec'},
+      {c:0xE8761F,ctr:[-2.5,-1.3,0.4],n:8, label:'LinkedIn voice'},
+      {c:0x2BC9A0,ctr:[0.8,-2.0,0.5],n:9, label:'email voice'}
+    ];
+    function R(){return Math.random();}
+    function scatterPos(){var u=R(),v=R(),th=2*Math.PI*u,ph=Math.acos(2*v-1),r=3.8+R()*2.6;return new THREE.Vector3(r*Math.sin(ph)*Math.cos(th),r*Math.sin(ph)*Math.sin(th)*0.7,r*Math.cos(ph)*0.7);}
+    var nodes=[],seed=null;
+    clusters.forEach(function(cl,ci){
+      var base=new THREE.Color(cl.c), ghost=base.clone().lerp(new THREE.Color(0x0b1020),0.74);
+      for(var i=0;i<cl.n;i++){
+        var fp=new THREE.Vector3(cl.ctr[0]+(R()-R())*0.85,cl.ctr[1]+(R()-R())*0.8,cl.ctr[2]+(R()-R())*0.85);
+        var sz=0.14+R()*0.16;
+        var mat=new THREE.MeshPhongMaterial({color:ghost.clone(),emissive:0x000000,specular:0x2a3550,shininess:42,transparent:true,opacity:0.92});
+        var m=new THREE.Mesh(new THREE.SphereGeometry(sz,24,24),mat);
+        var sc=scatterPos(); m.position.copy(sc); group.add(m);
+        nodes.push({mesh:m,cluster:ci,base:base,ghost:ghost,scatter:sc,formed:fp,size:sz,delay:0,phase:R()*6.28});
+      }
+    });
+    nodes.forEach(function(a,i){var d=nodes.map(function(b,j){return {j:j,d:a.formed.distanceTo(b.formed)};}).filter(function(x){return x.j!==i;}).sort(function(p,q){return p.d-q.d;});a.near=d.slice(0,3).map(function(x){return x.j;});a.delay=a.formed.length()*0.16;});
+    var maxDelay=0; nodes.forEach(function(n){if(n.delay>maxDelay)maxDelay=n.delay;});
+    var seg=[],seen={}; nodes.forEach(function(a,i){a.near.forEach(function(j){var k=i<j?i+'-'+j:j+'-'+i;if(seen[k])return;seen[k]=1;seg.push(a.formed.x,a.formed.y,a.formed.z,nodes[j].formed.x,nodes[j].formed.y,nodes[j].formed.z);});});
+    var wg=new THREE.BufferGeometry(); wg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(seg),3));
+    var webMat=new THREE.LineBasicMaterial({color:0x33405e,transparent:true,opacity:0});
+    var web=new THREE.LineSegments(wg,webMat); web.visible=false; group.add(web);
+
+    // region label DOM (one per cluster) + a temp vector for projection
+    var rlabels=clusters.map(function(cl){var d=document.createElement('div');d.className='rlabel';d.textContent=cl.label;labelsEl.appendChild(d);return d;});
+    var pv=new THREE.Vector3();
+    function project(vec){ pv.copy(vec).applyMatrix4(group.matrixWorld).project(camera);
+      return {x:(pv.x*0.5+0.5)*W, y:(-pv.y*0.5+0.5)*H, infront:pv.z<1}; }
+
+    var ease=function(x){return 1-Math.pow(1-x,3);};
+    var back=function(x){var c=1.70158,c1=c+1;return 1+c1*Math.pow(x-1,3)+c*Math.pow(x-1,2);};
+    var clamp=function(x){return Math.max(0,Math.min(1,x));};
+    var state='pieces', t0=0, count=0, halos=[], seedText='', seedCi=-1;
+    function setCap(t){cap.style.opacity=0;setTimeout(function(){cap.textContent=t;cap.style.opacity=1;},150);}
+
+    // keyword stub → region index (right-or-silent: -1 = name nothing)
+    function pickCategory(s){ s=' '+(s||'').toLowerCase()+' ';
+      function has(){for(var i=0;i<arguments.length;i++){if(s.indexOf(arguments[i])>=0)return true;}return false;}
+      if(has('skill','i can ','how to','able to','learn to'))return 0;
+      if(has('meeting','call','notes','sync','agenda','standup','discussed'))return 1;
+      if(has('prefer','i like','i love','i hate','favourite','favorite'))return 2;
+      if(has('writ','tone','phrase','wording','style of'))return 3;
+      if(has('brand','colour','color','logo','font','design','look','feel'))return 4;
+      if(has('linkedin','post'))return 5;
+      if(has('email','reply','inbox','e-mail'))return 6;
+      return -1;
+    }
+    function spawnHalo(node,col){var mt=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0.5,blending:THREE.AdditiveBlending,depthWrite:false,depthTest:false});var h=new THREE.Mesh(new THREE.SphereGeometry(node.size||0.3,16,16),mt);h.position.copy(node.formed||node.mesh.position);h.renderOrder=11;group.add(h);halos.push({mesh:h,t:0});}
+    function makeSeed(){
+      // dock at the chosen region (pulled toward the camera so it sits in FRONT
+      // of that lobe), or centre-front if unsure. Renders ON TOP — never buried.
+      var dock;
+      if(seedCi>=0){var c=clusters[seedCi].ctr; dock=new THREE.Vector3(c[0],c[1]+0.35,c[2]+1.7);}
+      else dock=new THREE.Vector3(0,0.1,2.4);
+      var col=new THREE.Color(0xCFF1FF);
+      var mat=new THREE.MeshPhongMaterial({color:new THREE.Color(0x16202c),emissive:0x000000,specular:0xffffff,shininess:80,transparent:true,opacity:1,depthTest:false});
+      var m=new THREE.Mesh(new THREE.SphereGeometry(0.4,28,28),mat); m.renderOrder=12;
+      m.position.copy(dock); group.add(m);
+      seed={mesh:m,base:col,formed:dock,size:0.4};
+      // the added piece's label — the user's own words
+      seedCard.querySelector('.txt').textContent='“'+seedText+'”';
+      seedCard.querySelector('.reg').textContent = seedCi>=0 ? ('→ your '+clusters[seedCi].label) : '';
+    }
+    var clk=new THREE.Clock();
+    function assemble(txt){ seedText=txt||'your first thought'; seedCi=pickCategory(txt); state='assembling'; t0=clk.elapsedTime; makeSeed(); web.visible=true; spawnHalo(seed,seed.base); setCap('bringing the pieces of your mind together…'); btn.disabled=true; }
+    function disperse(){ state='dispersing'; t0=clk.elapsedTime; seedCard.style.opacity=0; setCap('loose pieces of you, waiting — add a thought to bring them together.'); btn.disabled=true; }
+    btn.addEventListener('click',function(){ if(state==='pieces'){ var t=inp.value.trim(); inp.value=''; assemble(t); } else if(state==='living'){ disperse(); } });
+    inp.addEventListener('keydown',function(e){ if(e.key==='Enter'&&state==='pieces'){ var t=inp.value.trim(); inp.value=''; assemble(t); } });
+
+    function placeLabels(formAmt){
+      for(var i=0;i<rlabels.length;i++){
+        var c=clusters[i].ctr; var p=project(new THREE.Vector3(c[0],c[1]+0.95,c[2]));
+        rlabels[i].style.left=p.x+'px'; rlabels[i].style.top=p.y+'px';
+        var hot = (seedCi===i)?1:0;
+        rlabels[i].style.opacity = (formAmt*(p.infront?1:0)*(0.42+0.3*hot)).toFixed(3);
+        rlabels[i].style.color = hot? '#FFD79A' : '#aeb6c8';
+      }
+      if(seed){ var sp=project(seed.formed); seedCard.style.left=sp.x+'px'; seedCard.style.top=(sp.y+18)+'px'; }
+    }
+    function loop(){
+      var dt=clk.getDelta(), t=clk.elapsedTime;
+      if(state==='living') { group.rotation.y+=dt*0.12; group.rotation.x=Math.sin(t*0.15)*0.05; }
+      if(state==='pieces'){
+        for(var i=0;i<nodes.length;i++){var n=nodes[i];n.mesh.position.set(n.scatter.x+Math.sin(t*0.3+n.phase)*0.18,n.scatter.y+Math.cos(t*0.27+n.phase)*0.16,n.scatter.z+Math.sin(t*0.22+n.phase)*0.15);n.mesh.scale.setScalar(1);}
+        placeLabels(0);
+      } else if(state==='assembling'){
+        var done=true;
+        for(var i=0;i<nodes.length;i++){var n=nodes[i];var lt=(t-t0-n.delay)/0.85;var e=ease(clamp(lt));
+          n.mesh.position.lerpVectors(n.scatter,n.formed,e);
+          n.mesh.scale.setScalar(lt<=0?1:back(clamp(lt)));
+          n.mesh.material.color.copy(n.ghost).lerp(n.base,clamp(lt));
+          n.mesh.material.emissive.copy(n.base).multiplyScalar(0.26*clamp(lt));
+          if(lt<1)done=false;
+        }
+        webMat.opacity=clamp((t-t0-0.7)/1.2)*0.24;
+        var formAmt=clamp((t-t0-0.5)/1.1); placeLabels(formAmt);
+        if(seed){var sl=clamp((t-t0)/0.5);seed.mesh.material.color.copy(new THREE.Color(0x16202c)).lerp(seed.base,sl);seed.mesh.material.emissive.copy(seed.base).multiplyScalar(0.5*sl);seed.mesh.scale.setScalar(1+0.25*Math.sin(sl*Math.PI));seedCard.style.opacity=(sl>0.55?1:0);}
+        if(done&&(t-t0)>maxDelay+1.0){ state='living'; count++; countEl.textContent='your brain · '+count+' item'+(count>1?'s':''); var where=seedCi>=0?('it found its place in your '+clusters[seedCi].label+' — it\'s part of you now.'):"it found its place — it's part of you now."; setCap(where); btn.textContent='REPLAY'; btn.disabled=false; setTimeout(function(){if(state==='living')setCap('your mind is taking shape.');},2600); }
+      } else if(state==='living'){
+        for(var i=0;i<nodes.length;i++){var n=nodes[i];n.mesh.position.copy(n.formed);var br=0.24+0.05*Math.sin(t*1.2+n.phase);n.mesh.material.emissive.copy(n.base).multiplyScalar(br);}
+        if(seed){seed.mesh.material.emissive.copy(seed.base).multiplyScalar(0.5+0.12*Math.sin(t*1.6));}
+        placeLabels(1); seedCard.style.opacity=1;
+      } else if(state==='dispersing'){
+        var d2=true;
+        for(var i=0;i<nodes.length;i++){var n=nodes[i];var lt=(t-t0)/1.0;var e=ease(clamp(lt));
+          n.mesh.position.lerpVectors(n.formed,n.scatter,e);
+          n.mesh.material.color.copy(n.base).lerp(n.ghost,clamp(lt));
+          n.mesh.material.emissive.copy(n.base).multiplyScalar(0.26*(1-clamp(lt)));
+          if(lt<1)d2=false;
+        }
+        webMat.opacity=0.24*(1-clamp((t-t0)/0.8)); placeLabels(1-clamp((t-t0)/0.6));
+        if(seed){seed.mesh.material.opacity=1-clamp((t-t0)/0.6);seed.mesh.scale.setScalar(1-clamp((t-t0)/0.8));}
+        if(d2){ if(seed){group.remove(seed.mesh);seed=null;} web.visible=false; group.rotation.set(0,0,0); state='pieces'; btn.textContent='STORE'; btn.disabled=false; }
+      }
+      for(var h=halos.length-1;h>=0;h--){var ha=halos[h];ha.t+=dt/1.2;ha.mesh.scale.setScalar(1+ha.t*2.6);ha.mesh.material.opacity=Math.max(0,0.5*(1-ha.t));if(ha.t>=1){group.remove(ha.mesh);halos.splice(h,1);}}
+      renderer.render(scene,camera);
+      requestAnimationFrame(loop);
+    }
+    loop();
+    window.addEventListener('resize',function(){W=stage.clientWidth;H=stage.clientHeight;camera.aspect=W/H;camera.updateProjectionMatrix();renderer.setSize(W,H,false);});
+  }
+  start();
+})();
+</script>
+</body>
+</html>

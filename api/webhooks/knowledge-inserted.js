@@ -25,6 +25,14 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'missing record fields' });
   }
 
+  // Document parent-summary rows (chunk_index 0) are a derived rollup of chunks
+  // that have ALREADY triggered compilation — they are not new source material,
+  // so they must not fire the concept-compile job again. (Pre-030 the column is
+  // absent → undefined !== 0 → behaves exactly as before.)
+  if (record.chunk_index === 0) {
+    return res.status(200).json({ ok: true, skipped: 'document-parent' });
+  }
+
   try {
     await inngest.send({
       name: 'twin/item.stored',

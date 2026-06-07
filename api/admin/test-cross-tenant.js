@@ -15,6 +15,9 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { getOrCreateUser } from '../../lib/auth.js';
 import { getNamespace } from '../../lib/pinecone.js';
 import { deleteAccount } from '../../lib/account.js';
+import { getDB } from '../../lib/supabase.js';
+import { createPublicLink, revokePublicLink, resolvePublicArtifact, getActivePublicLink, createSharedAnswerLink } from '../../lib/public-links.js';
+import { tenantRead, assertTenant, publicArtifactRead } from '../../lib/data-access.js';
 import { addKnowledge, addReferenceRecord } from '../../tools/storage.js';
 import { searchTwin, getByType, getByTag, synthesise, searchForCreation } from '../../tools/retrieval.js';
 import { listRecent, updateKnowledge, deleteKnowledge } from '../../tools/management.js';
@@ -302,6 +305,175 @@ export default async function handler(req, res) {
     expect('search_for_creation_cross_tenant_isolated',
       !bobLeakIds.includes(aliceItemId) && !bobLeakIds.includes(aliceSkillItem.id) && !bobLeakIds.includes(refRecord.id),
       { bob_saw: bobLeakIds });
+
+    // ══════════════════════════════════════════════════════════════════════
+    // PHASE 0 — Public-link + data-access backstop (the Phase-2 merge gate).
+    // Proves the four hard requirements for BOTH artifact branches (item +
+    // concept): (1) A cannot read B; (2) a public token reads only artifacts
+    // explicitly made public and no sibling; (3) revoke -> not-found at once;
+    // (4) the payload never carries a private field or another tenant's content.
+    // Also exercises the mandatory data-access helper directly.
+    // ══════════════════════════════════════════════════════════════════════
+    const db = getDB();
+    let publicLinksReady = true, probeErr = null;
+    try {
+      const probe = await db.from('public_links').select('id').limit(1);
+      if (probe.error) { probeErr = probe.error; publicLinksReady = false; }
+    } catch (e) { probeErr = e; publicLinksReady = false; }
+
+    // Distinguish "table not migrated yet" (skip, stays green) from any OTHER
+    // probe error (a real failure — a stale schema cache or RLS misconfig must
+    // NOT silently turn the merge gate into a green no-op).
+    const tableAbsent = probeErr && (probeErr.code === '42P01' || probeErr.code === 'PGRST205' ||
+      /relation .*public_links.* does not exist|could not find the table/i.test(probeErr.message || ''));
+
+    if (!publicLinksReady && tableAbsent) {
+      checks.push({ name: 'public_links_migration_pending', pass: true,
+        details: { skipped: true, reason: 'public_links table not migrated yet — run schema/migrations/029-public-links.sql, then re-run' } });
+    } else if (!publicLinksReady) {
+      expect('public_links_probe_unexpected_error', false, { code: probeErr?.code, msg: probeErr?.message });
+    } else {
+      // ── data-access backstop: tenant guard + scoped read ──────────────────
+      let g1 = false, g2 = false, g3 = false, gok = true;
+      try { assertTenant(null); } catch { g1 = true; }
+      try { assertTenant({ tenantId: 'x' }); } catch { g2 = true; }   // missing userId
+      try { assertTenant({ userId: 'x' }); } catch { g3 = true; }     // missing tenantId
+      try { assertTenant(alice); } catch { gok = false; }
+      expect('assertTenant_refuses_no_tenant', g1 && g2 && g3 && gok);
+
+      const bobScoped = await tenantRead(bob, 'knowledge', 'id').in('id', [aliceItemId, bobItemId]);
+      const bobScopedIds = (bobScoped.data || []).map(r => r.id);
+      expect('tenantRead_scopes_to_caller_tenant',
+        bobScopedIds.includes(bobItemId) && !bobScopedIds.includes(aliceItemId), { bobScopedIds });
+
+      // ── ITEM branch ───────────────────────────────────────────────────────
+      const link = await createPublicLink({ ctx: alice, objectType: 'item', objectId: aliceItemId });
+      expect('public_link_created', !!link?.slug && link.slug.length >= 16, { slug_len: link?.slug?.length });
+
+      const pub = await resolvePublicArtifact(link.slug);
+      expect('public_read_returns_artifact',
+        !!pub && pub.title === 'Alice principle' && String(pub.content || '').includes('yes-3kj92'));
+
+      // publicArtifactRead (the data-access gateway) must equal the resolver.
+      const pubViaGateway = await publicArtifactRead(link.slug);
+      expect('publicArtifactRead_matches_resolver', JSON.stringify(pubViaGateway) === JSON.stringify(pub));
+      expect('publicArtifactRead_unknown_is_null', (await publicArtifactRead('bogus-slug-xyz')) === null);
+
+      // DENY-BY-DEFAULT: every key must be in the allow-set (a new leaked field fails).
+      const ITEM_ALLOWED = ['type','item_type','title','content','tags','source_count','updated_at','created_at','owner_name','slug'];
+      const itemExtra = pub ? Object.keys(pub).filter(k => !ITEM_ALLOWED.includes(k)) : ['<null>'];
+      expect('item_payload_no_unexpected_keys', itemExtra.length === 0, { itemExtra });
+
+      // Value-level leak checks: no other-tenant content, no SIBLING content, no email.
+      const pubJson = JSON.stringify(pub || {});
+      expect('item_no_other_tenant_content', !pubJson.includes('crime-9xz41'));
+      expect('item_no_sibling_content', !pubJson.includes('blue, white, gold') && !pubJson.includes('contrarian observation'));
+      expect('item_owner_name_is_not_email', !!pub && !/@/.test(pub.owner_name || '') && !String(pub.owner_name||'').includes(alice.email.split('@')[0]));
+
+      // A uuid is not a slug; an unlinked sibling stays private; unknown slug -> null.
+      expect('uuid_is_not_a_public_slug', (await resolvePublicArtifact(aliceItemId)) === null);
+      expect('unlinked_sibling_has_no_link', (await getActivePublicLink({ ctx: alice, objectType: 'item', objectId: orgItem.id })) === null);
+      expect('unknown_slug_is_null', (await resolvePublicArtifact('zzzNotARealSlug000000')) === null);
+
+      // Owner-only mint.
+      let bobMintBlocked = false;
+      try { await createPublicLink({ ctx: bob, objectType: 'item', objectId: aliceItemId }); }
+      catch (e) { bobMintBlocked = e?.status === 404 || /not found/i.test(e?.message || ''); }
+      expect('item_mint_is_owner_only', bobMintBlocked);
+
+      // view_count bumps on the LINK row only; the artifact is never written.
+      const itemBefore = await db.from('knowledge').select('updated_at').eq('id', aliceItemId).maybeSingle();
+      await resolvePublicArtifact(link.slug);
+      await new Promise(r => setTimeout(r, 400)); // let the fire-and-forget settle
+      const linkRow = await db.from('public_links').select('view_count, last_viewed_at').eq('slug', link.slug).maybeSingle();
+      const itemAfter = await db.from('knowledge').select('updated_at').eq('id', aliceItemId).maybeSingle();
+      expect('view_count_bumps_link_not_artifact',
+        (linkRow.data?.view_count || 0) >= 1 && !!linkRow.data?.last_viewed_at &&
+        itemBefore.data?.updated_at === itemAfter.data?.updated_at, { view_count: linkRow.data?.view_count });
+
+      // Revoke -> null, then re-create yields a fresh slug.
+      await revokePublicLink({ ctx: alice, objectType: 'item', objectId: aliceItemId });
+      expect('item_revoked_is_null', (await resolvePublicArtifact(link.slug)) === null);
+      const link2 = await createPublicLink({ ctx: alice, objectType: 'item', objectId: aliceItemId });
+      expect('item_recreate_after_revoke_new_slug', !!link2?.slug && link2.slug !== link.slug);
+
+      // ── CONCEPT branch ────────────────────────────────────────────────────
+      // Seed a fully-sharable concept page (the compiler's own gate: visibility
+      // 'sharable' only when all sources are) and a private one.
+      const sharedConcept = (await db.from('concept_pages').insert({
+        tenant_id: alice.tenantId, user_id: alice.userId, flavour: 'knowledge',
+        title: 'Alice concept', summary: 'Alice concept summary', content: 'Alice concept body marker yes-3kj92',
+        source_ids: [aliceItemId], visibility: 'sharable',
+      }).select('id').single()).data;
+      const privateConcept = (await db.from('concept_pages').insert({
+        tenant_id: alice.tenantId, user_id: alice.userId, flavour: 'knowledge',
+        title: 'Alice private concept', summary: 's', content: 'embeds private sibling crime-9xz41-like text',
+        source_ids: [aliceItemId], visibility: 'private',
+      }).select('id').single()).data;
+
+      // A private concept (any private source) is REFUSED publication.
+      let privGateBlocked = false;
+      try { await createPublicLink({ ctx: alice, objectType: 'concept', objectId: privateConcept.id }); }
+      catch (e) { privGateBlocked = e?.status === 409; }
+      expect('concept_private_refused_publication', privGateBlocked);
+
+      // A sharable concept publishes and resolves, public-safe only.
+      const clink = await createPublicLink({ ctx: alice, objectType: 'concept', objectId: sharedConcept.id });
+      const cpub = await resolvePublicArtifact(clink.slug);
+      expect('concept_read_returns_artifact', !!cpub && cpub.type === 'concept' && cpub.title === 'Alice concept');
+      const CONCEPT_ALLOWED = ['type','flavour','title','summary','content','version','source_count','updated_at','created_at','owner_name','slug'];
+      const conceptExtra = cpub ? Object.keys(cpub).filter(k => !CONCEPT_ALLOWED.includes(k)) : ['<null>'];
+      expect('concept_payload_no_unexpected_keys', conceptExtra.length === 0, { conceptExtra });
+      expect('concept_exposes_source_count_not_ids',
+        !!cpub && typeof cpub.source_count === 'number' && cpub.source_ids === undefined);
+      expect('concept_no_source_id_leak', !!cpub && !JSON.stringify(cpub).includes(aliceItemId));
+
+      // Owner-only mint + revoke->null for the concept branch too.
+      let bobConceptMintBlocked = false;
+      try { await createPublicLink({ ctx: bob, objectType: 'concept', objectId: sharedConcept.id }); }
+      catch (e) { bobConceptMintBlocked = e?.status === 404 || /not found/i.test(e?.message || ''); }
+      expect('concept_mint_is_owner_only', bobConceptMintBlocked);
+      await revokePublicLink({ ctx: alice, objectType: 'concept', objectId: sharedConcept.id });
+      expect('concept_revoked_is_null', (await resolvePublicArtifact(clink.slug)) === null);
+
+      // ── ANSWER branch ─────────────────────────────────────────────────────
+      // A chat answer is snapshotted into shared_answers and link-shared. The
+      // payload exposes only the text; citations (which can name private items)
+      // are never exposed.
+      const alink = await createSharedAnswerLink({ ctx: alice,
+        title: 'Alices take, on craft and shipping',
+        content: 'You build by shipping. The marker yes-3kj92 is mine.',
+        citations: [{ id: bobItemId, note: 'crime-9xz41' }] });   // hostile citation payload
+      const apub = await resolvePublicArtifact(alink.slug);
+      expect('answer_read_returns_artifact', !!apub && apub.type === 'answer' && String(apub.content || '').includes('You build by shipping'));
+      const ANSWER_ALLOWED = ['type','title','content','created_at','owner_name','slug'];
+      const answerExtra = apub ? Object.keys(apub).filter(k => !ANSWER_ALLOWED.includes(k)) : ['<null>'];
+      expect('answer_payload_no_unexpected_keys', answerExtra.length === 0, { answerExtra });
+      expect('answer_no_citation_leak', !!apub && apub.citations === undefined &&
+        !JSON.stringify(apub).includes(bobItemId) && !JSON.stringify(apub).includes('crime-9xz41'));
+      expect('answer_title_dash_clean', !!apub && !/[—–]/.test(apub.title || ''));
+      let bobAnswerMintBlocked = false;
+      try { await createPublicLink({ ctx: bob, objectType: 'answer', objectId: alink.objectId }); }
+      catch (e) { bobAnswerMintBlocked = e?.status === 404 || /not found/i.test(e?.message || ''); }
+      expect('answer_mint_is_owner_only', bobAnswerMintBlocked);
+      await revokePublicLink({ ctx: alice, objectType: 'answer', objectId: alink.objectId });
+      expect('answer_revoked_is_null', (await resolvePublicArtifact(alink.slug)) === null);
+
+      // ── Expiry kill-switch ────────────────────────────────────────────────
+      const elink = await createPublicLink({ ctx: alice, objectType: 'item', objectId: orgItem.id });
+      await db.from('public_links').update({ expires_at: new Date(Date.now() - 1000).toISOString() }).eq('slug', elink.slug);
+      expect('expired_link_is_null', (await resolvePublicArtifact(elink.slug)) === null);
+      await db.from('public_links').update({ expires_at: new Date(Date.now() + 3600_000).toISOString() }).eq('slug', elink.slug);
+      expect('unexpired_link_resolves', !!(await resolvePublicArtifact(elink.slug)));
+
+      // ── Tampered link row cannot cross tenants ────────────────────────────
+      // A row that claims Alice owns Bob's item must NOT resolve, because the
+      // artifact fetch is scoped to the link row's owner (Alice), and Bob's item
+      // is not Alice's. This is the core cross-tenant guarantee on the public path.
+      const tamperSlug = 'tamper' + Date.now().toString(36) + 'aaaaaaaa';
+      await db.from('public_links').insert({ slug: tamperSlug, owner_user_id: alice.userId, tenant_id: alice.tenantId, object_item_id: bobItemId });
+      expect('tampered_cross_tenant_link_is_null', (await resolvePublicArtifact(tamperSlug)) === null);
+    }
   } catch (err) {
     expect('test_harness_did_not_throw', false, { error: err?.message, stack: err?.stack?.split('\n').slice(0, 3).join(' | ') });
   }

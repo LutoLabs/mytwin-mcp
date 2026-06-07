@@ -6,7 +6,14 @@
   "engines": {
     "node": "20.x"
   },
-  "scripts": {},
+  "scripts": {
+    "lint:dashes": "node scripts/lint-dashes.mjs",
+    "lint": "node scripts/lint-dashes.mjs",
+    "test": "node --import ./scripts/reclassify/_preload-env.mjs --test tests/*.test.mjs",
+    "test:xtenant": "node scripts/test-xtenant.mjs",
+    "sync:inngest": "curl -fsS -X PUT https://myaitwin.lutolearn.com/api/inngest && echo ' ✓ inngest re-synced'",
+    "deploy:prod": "vercel deploy --prod && npm run sync:inngest && npm run test:xtenant"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.69.0",
     "inngest": "^3.0.0",

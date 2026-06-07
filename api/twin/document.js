@@ -17,7 +17,7 @@ import { generateAck } from '../../lib/ack.js';
 export default async function handler(req, res) {
   if (!methodGuard(req, res, ['POST'])) return;
 
-  const { filename, content, notes, title, tags, provenance, type } = req.body || {};
+  const { filename, content, notes, title, tags, provenance, type, summary, replace } = req.body || {};
   if (typeof filename !== 'string' || !filename.trim()) {
     return res.status(400).json({ error: 'filename is required' });
   }
@@ -36,7 +36,14 @@ export default async function handler(req, res) {
     toolName: 'add_document',
     cap:      'storage',
     fn: async (ctx) => {
-      const result = await addDocument(ctx, { filename, content, notes, type: knowledgeType });
+      const result = await addDocument(ctx, {
+        filename, content, notes, type: knowledgeType, summary,
+        replace: Boolean(replace),
+      });
+      // Already in the twin and the user didn't ask to replace: return the
+      // duplicate signal with no ack. The UI offers "already in your twin,
+      // replace it?" — confirming re-POSTs with replace: true.
+      if (result.duplicate) return result;
       const ack = await generateAck({
         type:            knowledgeType === 'skill' ? 'skill' : 'document',
         title:           title || filename,

@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { email, inviteCode, claimTenantId } = await verifyMagicToken(token);
+    const { email, inviteCode, claimTenantId, referrer } = await verifyMagicToken(token);
 
     let user, isNew = false, mintedInviteCode = null, isClaim = false;
 
@@ -71,7 +71,7 @@ export default async function handler(req, res) {
           isNew = false;
         } else {
           // New email: upgrade the placeholder user row in-place.
-          const result = await claimAnonTenantAsNewUser(email, claimTenantId);
+          const result = await claimAnonTenantAsNewUser(email, claimTenantId, referrer);
           user  = result.user;
           isNew = true;
         }
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
         // Non-fatal: fall back to regular sign-in so the user still gets a
         // session even if the merge / upgrade failed. Log for ops.
         console.error('[verify] claim mutation failed, falling back:', claimErr.message);
-        const result = await getOrCreateUser(email, { allowUninvited: true });
+        const result = await getOrCreateUser(email, { allowUninvited: true, referrerSlug: referrer });
         user  = result.user;
         isNew = result.isNew;
         mintedInviteCode = result.mintedInviteCode;
@@ -88,7 +88,7 @@ export default async function handler(req, res) {
     } else {
       // ── Regular sign-in / sign-up path ───────────────────────────────────
       // Open signups — new users self-serve; invited users get invite redeemed.
-      const result = await getOrCreateUser(email, { inviteCode, allowUninvited: true });
+      const result = await getOrCreateUser(email, { inviteCode, allowUninvited: true, referrerSlug: referrer });
       user             = result.user;
       isNew            = result.isNew;
       mintedInviteCode = result.mintedInviteCode;

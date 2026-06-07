@@ -48,6 +48,14 @@ export default async function handler(req, res) {
         throw new HttpError(503, { error: 'Voice transcription is not configured on this server.' });
       }
 
+      // Warm path: prime the serverless instance + Deepgram project-id cache on
+      // page load so the first real token mint is fast. Mints no key, costs no
+      // rate-limit budget — it just removes the cold start from the trust moment.
+      if (req.body && req.body.warm) {
+        try { await getProjectId(); } catch { /* best-effort */ }
+        return { warmed: true };
+      }
+
       // 30 token mints per user per hour — each covers one recording session.
       const rl = await checkRateLimit(`voice_token:${ctx.userId}`, 30);
       if (rl.exceeded) {
