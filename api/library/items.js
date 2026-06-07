@@ -92,6 +92,12 @@ export default async function handler(req, res) {
 
       // ── Single item detail ───────────────────────────────────────────────
       if (id) {
+        // Reject a malformed id as not-found instead of letting Postgres throw
+        // "invalid input syntax for type uuid" -> 500 (M1). Uniform 404 for both
+        // bad-format and genuinely-absent also avoids leaking which it was.
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id))) {
+          throw new HttpError(404, { error: 'Item not found' });
+        }
         const { data, error } = await db
           .from('knowledge')
           .select(SELECT)
