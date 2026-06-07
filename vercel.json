@@ -19,7 +19,7 @@
     { "source": "/twin/library",   "destination": "/library.html" },
     { "source": "/twin/library/concept/:id", "destination": "/concept.html" },
     { "source": "/voice",          "destination": "/voice.html" },
-    { "source": "/voice/connections", "destination": "/connections.html" },
+    { "source": "/twin/connections",  "destination": "/connections.html" },
     { "source": "/connections",       "destination": "/connections.html" },
     { "source": "/p/:slug",        "destination": "/api/p/[slug]" },
     { "source": "/mcp",                                    "destination": "/api/mcp" },
@@ -36,7 +36,8 @@
     { "source": "/admin.html",     "destination": "/", "permanent": true },
     { "source": "/twin/account",   "destination": "/twin/profile", "permanent": false },
     { "source": "/account",        "destination": "/twin/profile", "permanent": false },
-    { "source": "/account.html",   "destination": "/twin/profile", "permanent": false }
+    { "source": "/account.html",   "destination": "/twin/profile", "permanent": false },
+    { "source": "/voice/connections", "destination": "/twin/connections", "permanent": false }
   ],
   "functions": {
     "api/inngest.js":                       { "maxDuration": 300 },

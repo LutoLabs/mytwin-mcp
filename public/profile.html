@@ -328,11 +328,9 @@ body.grabbing, body.grabbing #hypergraph-container #scene canvas { cursor: grabb
       </span>
     </a>
     <span class="header-spacer"></span>
-    <a href="/twin/chat" class="nav-link">Store &amp; Search</a>
-    <a href="/voice" class="nav-link">Voice</a>
-    <a href="/twin/library" class="nav-link">Brain</a>
-  </div>
+    </div>
 </header>
+<nav class="surface-nav" id="app-surface-nav" aria-label="Main"></nav>
 
 <!-- Hypergraph stage -->
 <div id="hypergraph-container">
@@ -1603,5 +1601,6 @@ document.getElementById('ws-create-btn')?.addEventListener('click', async () => 
 })();
 </script>
 
+  <script src="/surface-nav.js" defer></script>
 </body>
 </html>

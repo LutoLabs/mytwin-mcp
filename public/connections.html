@@ -128,14 +128,7 @@
   </div>
 </header>
 
-<nav class="surface-nav" aria-label="Main actions">
-  <div class="surface-nav-group">
-    <a class="main-tab" href="/twin/chat">Store &amp; Search</a>
-    <a class="main-tab" href="/voice">Voice</a>
-    <a class="main-tab" href="/twin/library">Brain</a>
-    <a class="main-tab active" href="/voice/connections" aria-current="page">Connections</a>
-  </div>
-</nav>
+<nav class="surface-nav" id="app-surface-nav" aria-label="Main"></nav>
 
 <main>
   <div class="page-head">
@@ -336,5 +329,6 @@ async function doDisconnect(id, label) {
 // ── boot ─────────────────────────────────────────────────────────────────────
 (async () => { await ensureSession(); await load(); })();
 </script>
+  <script src="/surface-nav.js" defer></script>
 </body>
 </html>

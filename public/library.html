@@ -1098,13 +1098,7 @@ body.embed { background: var(--paper); }
 
 <!-- Persistent action bar (replaces the old CHAT · BRAIN · VOICE toggle): the
      three things you do with your twin, one hop from anywhere. -->
-<nav class="surface-nav" aria-label="Main actions">
-  <div class="surface-nav-group">
-    <a class="main-tab" href="/twin/chat">Store &amp; Search</a>
-    <a class="main-tab" href="/voice">Voice</a>
-    <a class="main-tab active" href="/twin/library" aria-current="page">Brain</a>
-  </div>
-</nav>
+<nav class="surface-nav" id="app-surface-nav" aria-label="Main"></nav>
 
 <!-- ── Loading skeleton ─────────────────────────────────────────────────── -->
 <div id="view-loading">
@@ -3409,5 +3403,6 @@ async function syncHeaderAuth() {
 })();
 </script>
 <script src="/share-modal.js"></script>
+  <script src="/surface-nav.js" defer></script>
 </body>
 </html>
