@@ -1591,9 +1591,14 @@ const SHARE_LEVELS = [
 function _el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
 function shareLevelLabel(v) { const f = SHARE_LEVELS.find(([val]) => val === v); return f ? f[1].replace(/ \(.*\)$/, '') : v; }
 function ensureShareStyles() {
-  if (document.getElementById('share-modal-styles')) return;
+  // NOTE: must NOT reuse the id 'share-modal-styles' — the external share-modal.js
+  // (window.LutoShare) injects a stylesheet under that id containing only its
+  // .shm-* rules. Sharing the id made this guard early-return after Share opened,
+  // so .share-overlay/.share-modal never loaded and the Contribute modal rendered
+  // unstyled at the page bottom (and duplicated on each click). Unique id fixes it.
+  if (document.getElementById('lib-overlay-styles')) return;
   const css = _el('style');
-  css.id = 'share-modal-styles';
+  css.id = 'lib-overlay-styles';
   css.textContent = [
     '.share-overlay{position:fixed;inset:0;background:rgba(15,14,13,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;}',
     '.share-modal{background:var(--card,#fff);border:1px solid var(--line,#e8e2d4);border-radius:14px;width:100%;max-width:460px;max-height:85vh;overflow:auto;padding:22px 22px 18px;box-shadow:0 20px 60px rgba(0,0,0,.18);}',
@@ -1623,7 +1628,11 @@ function ensureShareStyles() {
 // workspace namespace, one-directional. Reuses the share-modal styling.
 async function openContributeModal(itemId, itemTitle) {
   ensureShareStyles();
+  // single instance: never stack Contribute overlays (belt-and-braces; the
+  // position:fixed overlay already blocks re-clicks once styles load).
+  document.querySelectorAll('.share-overlay[data-modal="contribute"]').forEach(o => o.remove());
   const overlay = _el('div', 'share-overlay');
+  overlay.dataset.modal = 'contribute';
   const modal   = _el('div', 'share-modal');
   overlay.appendChild(modal);
   const close = () => { document.removeEventListener('keydown', onKey); overlay.remove(); };
