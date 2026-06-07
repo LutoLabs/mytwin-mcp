@@ -213,18 +213,40 @@
     const modes = opts.modes || (opts.resourceType === 'item' ? ['email', 'link'] : ['link']);
 
     const overlay = el('div', 'shm-overlay');
+    const prevFocus = document.activeElement;                 // A3: restore on close
     const card = el('div', 'shm-card');
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    card.setAttribute('aria-labelledby', 'shm-dialog-title');
+    card.tabIndex = -1;
     const head = el('div', 'shm-head');
-    head.appendChild(el('h3', 'shm-title', 'Share'));
-    const x = el('button', 'shm-x', '×');
+    const titleEl = el('h3', 'shm-title', 'Share'); titleEl.id = 'shm-dialog-title';
+    head.appendChild(titleEl);
+    const x = el('button', 'shm-x', '×'); x.setAttribute('aria-label', 'Close dialog');
     head.appendChild(x);
     card.appendChild(head);
 
     const body = el('div', 'shm-body');
     const tabs = el('div', 'shm-tabs');
 
-    function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
-    function onKey(e) { if (e.key === 'Escape') close(); }
+    function close() {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+      if (prevFocus && prevFocus.focus) prevFocus.focus();    // A3: restore focus to trigger
+    }
+    function focusables() {
+      return [...card.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+        .filter(e => e.offsetParent !== null);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') { close(); return; }
+      if (e.key === 'Tab') {                                   // A3: trap focus inside the dialog
+        const f = focusables(); if (!f.length) return;
+        const first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    }
     x.onclick = close;
     overlay.addEventListener('mousedown', e => { if (e.target === overlay) close(); });
     document.addEventListener('keydown', onKey);
@@ -251,6 +273,7 @@
     overlay.appendChild(card);
     document.body.appendChild(overlay);
     show(modes[0]);
+    (focusables()[0] || card).focus();                        // A3: move focus into the dialog
   }
 
   window.LutoShare = { open: openShareModal };

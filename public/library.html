@@ -1625,16 +1625,31 @@ async function openContributeModal(itemId, itemTitle) {
   // single instance: never stack Contribute overlays (belt-and-braces; the
   // position:fixed overlay already blocks re-clicks once styles load).
   document.querySelectorAll('.share-overlay[data-modal="contribute"]').forEach(o => o.remove());
+  const prevFocus = document.activeElement;                 // A3: restore focus on close
   const overlay = _el('div', 'share-overlay');
   overlay.dataset.modal = 'contribute';
   const modal   = _el('div', 'share-modal');
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-labelledby', 'contribute-dialog-title');
+  modal.tabIndex = -1;
   overlay.appendChild(modal);
-  const close = () => { document.removeEventListener('keydown', onKey); overlay.remove(); };
-  const onKey = e => { if (e.key === 'Escape') close(); };
+  const focusables = () => [...modal.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(e => e.offsetParent !== null);
+  const close = () => { document.removeEventListener('keydown', onKey); overlay.remove(); if (prevFocus && prevFocus.focus) prevFocus.focus(); };
+  const onKey = e => {
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key === 'Tab') {                                   // A3: trap focus inside the dialog
+      const f = focusables(); if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  };
   document.addEventListener('keydown', onKey);
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 
-  modal.appendChild(_el('h3', null, 'Contribute to a workspace'));
+  const titleEl = _el('h3', null, 'Contribute to a workspace'); titleEl.id = 'contribute-dialog-title';
+  modal.appendChild(titleEl);
   modal.appendChild(_el('p', 'share-sub', itemTitle || ''));
   const listWrap = _el('div');
   modal.appendChild(listWrap);
@@ -1646,6 +1661,7 @@ async function openContributeModal(itemId, itemTitle) {
   foot.appendChild(closeBtn);
   modal.appendChild(foot);
   document.body.appendChild(overlay);
+  (focusables()[0] || modal).focus();                       // A3: move focus into the dialog
 
   try {
     const { workspaces } = await api('/api/workspaces');

@@ -33,6 +33,9 @@
       '#app-surface-nav .lxnav-tab:hover:not(.active){color:var(--ink,#0F0E0D);background:var(--paper,#F5F3EF);}',
       '#app-surface-nav .lxnav-tab.active{background:var(--yellow,#FFE34A);color:var(--ink,#0F0E0D);border:1.5px solid var(--ink,#0F0E0D);margin:-1.5px;}',
       '@media(max-width:430px){#app-surface-nav{padding:10px 8px;}#app-surface-nav .lxnav-tab{padding:7px 12px;font-size:11px;letter-spacing:0.04em;}}',
+      // A7: skip link — visually hidden until focused, first focusable on the page.
+      '.lx-skip{position:fixed;top:-60px;left:8px;z-index:10000;background:var(--ink,#0F0E0D);color:#fff;padding:8px 14px;border-radius:8px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12px;font-weight:600;text-decoration:none;transition:top 120ms;}',
+      '.lx-skip:focus{top:8px;outline:2px solid var(--yellow,#FFE34A);outline-offset:2px;}',
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -52,6 +55,21 @@
     var mount = document.getElementById('app-surface-nav');
     if (!mount) return;
     injectStyles();
+    // A7: skip link as the first focusable element, targeting the page's main content.
+    if (!document.querySelector('.lx-skip')) {
+      var main = document.querySelector('main') || document.getElementById('page');
+      if (main) {
+        if (!main.id) main.id = 'lx-main';
+        if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
+        var mainId = main.id;
+        var skip = document.createElement('a');
+        skip.className = 'lx-skip';
+        skip.href = '#' + mainId;
+        skip.textContent = 'Skip to content';
+        skip.addEventListener('click', function () { var m = document.getElementById(mainId); if (m) setTimeout(function () { m.focus(); }, 0); });
+        document.body.insertBefore(skip, document.body.firstChild);
+      }
+    }
     var path = currentPath();
     var group = document.createElement('div');
     group.className = 'lxnav-group';
