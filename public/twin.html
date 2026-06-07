@@ -2637,7 +2637,9 @@ function renderPendingImageChip() {
 }
 
 // Send extracted document text through the existing propose-confirm-store flow.
-async function proposeFromText(filename, content) {
+// originalFile (pdf/docx only) is carried client-side so confirm-store can upload
+// the original binary to Storage after the document saves.
+async function proposeFromText(filename, content, originalFile = null) {
   if (!content || !content.trim()) {
     renderSystem('That file looks empty, nothing to read.');
     return;
@@ -2651,6 +2653,7 @@ async function proposeFromText(filename, content) {
       body: JSON.stringify({ filename, content }),
     });
     loading.remove();
+    if (originalFile) propose.proposal._originalFile = originalFile;
     renderDocumentProposal(propose.proposal);
   } catch (err) {
     loading.remove();
@@ -2703,14 +2706,14 @@ $uploadFile.addEventListener('change', async () => {
       let content;
       try { content = await extractPdfText(file); }
       finally { loading.remove(); }
-      await proposeFromText(file.name, content);
+      await proposeFromText(file.name, content, file);   // keep the original pdf
     } else if (ext === 'docx') {
       if (state.activeTab !== 'chat') switchTab('chat');
       const loading = renderLoading();
       let content;
       try { content = await extractDocxText(file); }
       finally { loading.remove(); }
-      await proposeFromText(file.name, content);
+      await proposeFromText(file.name, content, file);   // keep the original docx
     } else if (ext === 'txt' || ext === 'md') {
       const content = await file.text();
       await proposeFromText(file.name, content);
@@ -2844,6 +2847,11 @@ async function confirmStoreDocument(proposal, selectedType, cardEl, replace = fa
       });
       return;
     }
+    // Best-effort: keep the original binary (pdf/docx) in Storage for download +
+    // future re-extraction. Fire-and-forget — never blocks or fails the store.
+    if (result && result.source_id && proposal._originalFile) {
+      uploadOriginal(result.source_id, proposal._originalFile);
+    }
     // Render the in-voice ack the server generated. No "as 10 chunks".
     const verb = result.replaced ? 'Replaced' : 'Stored';
     renderTwin(result.ack || `In. ${verb} "${proposal.title}". You'll find it in your library.`);
@@ -2854,6 +2862,34 @@ async function confirmStoreDocument(proposal, selectedType, cardEl, replace = fa
     } else {
       renderSystem("Something stopped me storing that document. " + escapeHtml(err.message) + '. Try again.');
     }
+  }
+}
+
+// Upload a document's original binary to Storage in two steps: ask the server for
+// a signed upload url, PUT the file straight to Storage (bypasses the serverless
+// body-size limit), then tell the server to record it. Entirely best-effort: if
+// the bucket isn't set up (available:false) or any step fails, we skip silently —
+// the document is already fully stored as extracted text.
+async function uploadOriginal(sourceId, file) {
+  if (!sourceId || !file) return;
+  try {
+    const sign = await api('/api/twin/document-original', {
+      method: 'POST',
+      body: JSON.stringify({ source_id: sourceId, filename: file.name, mime: file.type }),
+    });
+    if (!sign || !sign.available || !sign.upload_url) return;   // Storage not enabled — skip
+    const put = await fetch(sign.upload_url, {
+      method: 'PUT',
+      headers: { 'content-type': file.type || 'application/octet-stream', 'x-upsert': 'true' },
+      body: file,
+    });
+    if (!put.ok) { console.warn('[original] upload failed:', put.status); return; }
+    await api('/api/twin/document-original', {
+      method: 'PATCH',
+      body: JSON.stringify({ source_id: sourceId, key: sign.key, mime: file.type, bytes: file.size }),
+    });
+  } catch (err) {
+    console.warn('[original] upload skipped:', err && err.message);
   }
 }
 

@@ -7,6 +7,7 @@ import { UserError } from '../lib/errors.js';
 import { formatDisplayRef } from '../lib/display-ref.js';
 import { cleanTitle, stripDashes } from '../lib/text-clean.js';
 import { hashChunk, hashDocument } from '../lib/content-hash.js';
+import { deleteOriginal } from '../lib/blob.js';
 
 // ── Input size limits ─────────────────────────────────────────────────────────
 // Per the security brief. Each limit produces a UserError surfaced to the
@@ -235,6 +236,13 @@ export async function deleteDocument(ctx, sourceId) {
   if (rows.length) {
     await db.from('knowledge').delete().eq('tenant_id', ctx.tenantId).in('id', rows.map(r => r.id));
   }
+  // Remove the stored original binary too (best-effort; pre-031 the column is
+  // absent → the lookup errors and we just skip).
+  try {
+    const { data: src } = await db.from('sources')
+      .select('original_key').eq('tenant_id', ctx.tenantId).eq('id', sourceId).maybeSingle();
+    if (src?.original_key) await deleteOriginal(src.original_key);
+  } catch { /* pre-031 or storage error — ignore */ }
   await db.from('sources').delete().eq('tenant_id', ctx.tenantId).eq('id', sourceId);
 
   return { deleted: rows.length };
@@ -418,7 +426,7 @@ export async function addFromUrl(ctx, { url, notes }) {
 //                   useful when retrieved whole in creation mode.
 //   - 'knowledge' → chunked for fine-grained retrieval (default).
 
-export async function addDocument(ctx, { filename, content, notes, type = 'knowledge', summary, replace = false }) {
+export async function addDocument(ctx, { filename, content, notes, type = 'knowledge', summary, replace = false, replaceSourceId = null }) {
   if (typeof content !== 'string' || !content.trim()) {
     throw new UserError('Document content is required.');
   }
@@ -431,16 +439,30 @@ export async function addDocument(ctx, { filename, content, notes, type = 'knowl
   // ── Idempotency. The same document (same tenant) is never silently stored
   // twice. If it already exists and the caller didn't ask to replace, return a
   // duplicate signal so the UI can offer "already in your twin, replace it?".
-  const existing = await findExistingDocument(db, ctx.tenantId, docHash);
-  if (existing && !replace) {
-    return {
-      stored:               false,
-      duplicate:            true,
-      existing_source_id:   existing.id,
-      existing_ingested_at: existing.ingested_at,
-      reference:            existing.reference,
-      message:              'This document is already in your twin.',
-    };
+  //
+  // replaceSourceId (connector edit-in-place): target an EXACT source row
+  // regardless of content hash. An edited remote item (e.g. a re-transcribed
+  // meeting) hashes differently, so hash lookup would miss it and duplicate —
+  // but the connector already knows which source this external id maps to.
+  let existing = null;
+  if (replaceSourceId) {
+    const res = await db.from('sources')
+      .select('id, ingested_at, reference')
+      .eq('id', replaceSourceId).eq('tenant_id', ctx.tenantId).maybeSingle();
+    existing = res.data || null;
+    if (existing) replace = true;   // force replace semantics onto the known row
+  } else {
+    existing = await findExistingDocument(db, ctx.tenantId, docHash);
+    if (existing && !replace) {
+      return {
+        stored:               false,
+        duplicate:            true,
+        existing_source_id:   existing.id,
+        existing_ingested_at: existing.ingested_at,
+        reference:            existing.reference,
+        message:              'This document is already in your twin.',
+      };
+    }
   }
   // Single doc-level autoTag pass shared across all storage paths.
   const docAutoTags = await autoTag(content, []);
@@ -472,9 +494,17 @@ export async function addDocument(ctx, { filename, content, notes, type = 'knowl
       .select('id, pinecone_id').eq('tenant_id', ctx.tenantId).eq('source_id', sourceId);
     oldChildIds  = (oldKids || []).map(r => r.id);
     oldChildVecs = (oldKids || []).map(r => r.pinecone_id).filter(Boolean);
-    await db.from('sources')
-      .update({ full_text: content, summary: docSummary })
-      .eq('id', sourceId).eq('tenant_id', ctx.tenantId);
+    // Edited content (replaceSourceId path) hashes differently, so persist the
+    // NEW hash. The hash-match replace path leaves it unchanged. Resilient
+    // pre-030: if content_hash isn't a column yet, retry the update without it.
+    const srcPatch = { full_text: content, summary: docSummary };
+    if (replaceSourceId) srcPatch.content_hash = docHash;
+    const { error: updErr } = await db.from('sources')
+      .update(srcPatch).eq('id', sourceId).eq('tenant_id', ctx.tenantId);
+    if (updErr && isUnknownColumnError(updErr) && 'content_hash' in srcPatch) {
+      delete srcPatch.content_hash;
+      await db.from('sources').update(srcPatch).eq('id', sourceId).eq('tenant_id', ctx.tenantId);
+    }
   } else {
     const { data: source, error: srcErr } = await insertWithOptionalCols(db, 'sources', {
       user_id:      ctx.userId,
@@ -515,7 +545,10 @@ export async function addDocument(ctx, { filename, content, notes, type = 'knowl
       source_ref:            filename,
       precomputed_auto_tags: docAutoTags,
       source_id:             sourceId,
-      chunk_index:           1,
+      // No chunk_index: a skill doc is ONE whole record, not a multi-part
+      // document. Leaving it null keeps it a normal flat library card (the
+      // collapse filter only hides chunk_index >= 1 parts) and never orphans it
+      // behind a parent that doesn't exist for skills.
     });
     stored.push(result.id);
   } else {

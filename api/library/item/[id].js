@@ -21,8 +21,10 @@
 import { methodGuard, runTwin, HttpError } from '../../../lib/twin-api.js';
 import { getDB } from '../../../lib/supabase.js';
 
-const ITEM_SELECT    = 'id, type, title, content, tags, source_ref, provenance, created_at, updated_at, version_number, is_living_document, visibility';
-const SIBLING_SELECT = 'id, title';
+// '*' so the 030 columns (source_id, chunk_index) flow through when present and
+// the detail endpoint never 500s on a pre-030 schema.
+const ITEM_SELECT    = '*';
+const SIBLING_SELECT = 'id, title, chunk_index';
 const CONCEPT_SELECT = 'id, flavour, title, summary';
 
 export default async function handler(req, res) {
@@ -68,11 +70,13 @@ export default async function handler(req, res) {
       if (!item)   throw new HttpError(404, { error: 'Item not found' });
 
       // ── Fetch siblings and concept pages in parallel ──────────────────────
-      const [siblingsResult, conceptsResult] = await Promise.allSettled([
+      const [siblingsResult, conceptsResult, originalResult] = await Promise.allSettled([
 
         // 1. Siblings — same source_ref, different id, sorted naturally
         (async () => {
           if (!item.source_ref || item.source_ref === 'source not recorded') return [];
+          // Order by chunk_index so parts read 1..N (the parent is 0), falling
+          // back to title. Title-only sort mis-ordered "part 10" before "part 2".
           const { data, error } = await db
             .from('knowledge')
             .select(SIBLING_SELECT)
@@ -80,7 +84,8 @@ export default async function handler(req, res) {
             .eq('user_id',    ctx.userId)
             .eq('source_ref', item.source_ref)
             .neq('id',        id)
-            .order('title', { ascending: true });
+            .order('chunk_index', { ascending: true, nullsFirst: true })
+            .order('title',       { ascending: true });
           if (error) { console.error('[item-detail] siblings error:', error.message); return []; }
           return data || [];
         })(),
@@ -96,12 +101,26 @@ export default async function handler(req, res) {
           if (error) { console.error('[item-detail] concepts error:', error.message); return []; }
           return data || [];
         })(),
+
+        // 3. Original-binary availability (Phase 4). Resilient pre-031 (the
+        // original_* columns don't exist → error → treated as unavailable).
+        (async () => {
+          if (!item.source_id) return null;
+          const { data, error } = await db
+            .from('sources')
+            .select('id, reference, original_key, original_mime, original_bytes')
+            .eq('id', item.source_id).eq('tenant_id', ctx.tenantId)
+            .maybeSingle();
+          if (error || !data || !data.original_key) return null;
+          return { available: true, source_id: data.id, filename: data.reference, mime: data.original_mime, bytes: data.original_bytes };
+        })(),
       ]);
 
       return {
         item,
         siblings:      siblingsResult.status === 'fulfilled' ? siblingsResult.value : [],
         concept_pages: conceptsResult.status === 'fulfilled' ? conceptsResult.value : [],
+        original:      originalResult.status === 'fulfilled' ? originalResult.value : null,
       };
     },
   });

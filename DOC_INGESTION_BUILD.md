@@ -110,9 +110,37 @@ run the destructive collapse. The code is written to **degrade gracefully** if d
    - `… scripts/_doc-backfill.mjs --apply-collapse --backup ./doc-backfill-backup.json --yes`
      (**destructive**: removes the 16 duplicate CFTE chunks + 4 redundant sources. Backup written first.)
 
-## Phase 4 (deferred, optional)
-Capture the original binary browser-side and store it in Supabase Storage, for re-extraction if the
-extractor improves and original-file download. Not required for the model to work; not built.
+## Phase 4 — original-binary storage (BUILT; needs a bucket to activate)
+Keeps the original uploaded PDF/DOCX alongside the extracted text, for original-file download and
+future re-extraction. Architecture: the browser uploads the binary **directly to Supabase Storage via a
+short-lived signed URL** (so it bypasses the serverless request-body limit); the server only mints the
+signed URLs (service role) and records a pointer. The bucket is private; nothing is publicly readable.
+
+- **Migration 031** ([schema/migrations/031-document-original-binary.sql](schema/migrations/031-document-original-binary.sql)):
+  `sources.original_key` / `original_mime` / `original_bytes`.
+- **[lib/blob.js](lib/blob.js)**: `createUploadUrl` / `createDownloadUrl` / `deleteOriginal` (service role).
+- **[api/twin/document-original.js](api/twin/document-original.js)**: `POST` sign-upload · `PATCH`
+  finalize · `GET` signed-download. Tenant-scoped; returns `available:false` if the bucket/columns are
+  absent (never 500s the flow).
+- **[public/twin.html](public/twin.html)**: captures the original pdf/docx at upload and, after the
+  document stores, uploads it **best-effort** (`uploadOriginal`) — any failure is silent; the document is
+  already saved as text. (txt/md skip this — their text *is* the original.)
+- **[public/library.html](public/library.html)** + **[api/library/item/[id].js](api/library/item/[id].js)**:
+  a separate "↓ Original file" button on the detail view, shown only when an original exists.
+- **[tools/storage.js](tools/storage.js)** `deleteDocument` removes the stored binary too (so the Phase 3
+  collapse / deletes don't orphan blobs).
+
+**To activate (your steps):**
+1. **Create a PRIVATE Storage bucket named `documents`** (Supabase Dashboard → Storage → New bucket,
+   Public = off). No RLS policies needed — access is service-role + signed URLs. (Override the name with
+   `DOCUMENTS_BUCKET` if you prefer.)
+2. Apply migration 031, deploy.
+3. **Verify the round-trip** (I could not, without the bucket): upload a PDF in chat → confirm it lands at
+   `documents/<tenant>/<source_id>/<file>` in Storage → open the doc in the Library → "↓ Original file"
+   downloads it. If the direct PUT to the signed URL needs a tweak (header/method), it's isolated to
+   `uploadOriginal` in twin.html + `createUploadUrl` in lib/blob.js.
+
+Everything is best-effort and additive: with no bucket, documents store exactly as before (text only).
 
 ## Notes / smaller decisions
 - The parent summary is stored as a `knowledge` row of type `document` (so it flows through existing
@@ -152,11 +180,18 @@ unique-index collision (the replacement has the same hash by construction). [too
    unique index + the `content_hash` column. If new code runs before 030, `findExistingDocument` finds
    nothing and there's no index to catch a race → duplicates possible in that window. (Code still runs
    — resilient inserts — but the dedup guarantee is absent until 030 exists.)
-4. **Library nesting: NOT built — still open.** We currently produce the 8 part rows **plus** a parent-
-   summary row (type `document`, chunk_index 0). The brief's "one openable item with parts nested" UI in
-   `library.html` was not implemented; right now the Library would show 9 rows for an 8-part doc. Needs a
-   follow-up: group by `source_id`/`document_id`, render the parent as the openable item, nest the parts
-   (and ideally hide bare part rows). **Flagged open.**
+4. **Library nesting: NOW BUILT.** (Was flagged open; built in round 3.) The library list collapses a
+   document to ONE representative card (its `chunk_index 0` parent) carrying a "📄 N parts" badge; the
+   part rows are hidden in the default browse view. Opening the card shows the document summary with its
+   parts listed in `chunk_index` order, each openable; the existing detail parts-nav now also orders by
+   `chunk_index` (fixed "part 10 before part 2"). Implemented server-side to survive pagination:
+   [api/library/items.js](api/library/items.js) hides parts + enriches the parent with `part_count`;
+   [api/library/item/[id].js](api/library/item/[id].js) returns siblings ordered by chunk_index;
+   [public/library.html](public/library.html) renders the badge + nested parts list. **Filter-aware:**
+   collapse applies only in the default unfiltered view — a type/visibility filter shows parts flat (so a
+   "knowledge" filter still surfaces document chunks). **Resilient:** uses `select('*')` and retries
+   without the collapse filter if `chunk_index` is absent (verified against pre-030 prod → renders flat,
+   no 500); nesting lights up once 030 + backfill land.
 5. **get_document reachability: fixed for in-app + available via MCP.** It was registered on the MCP
    server (external clients can call it from its directive description) but the **in-app chat
    (`api/twin/turn.js`) is a non-agentic pre-fetch router that never invoked it** — "summarise the whole
@@ -179,5 +214,5 @@ unique-index collision (the replacement has the same hash by construction). [too
 ### Still required before collapse (your manual prod acceptance pass)
 Apply 030 → deploy → upload CFTE fresh → re-upload (expect the duplicate/replace prompt, not a 4th copy)
 → ask the twin to summarise the whole brief (expect in-order reassembly via the new whole-doc path) →
-open it in the Library (note: parts not yet nested — item #4 above). Only then re-run the dry-run and run
-the gated collapse with `--backup`.
+open it in the Library (expect ONE card with "📄 8 parts" that opens to the summary + nested parts).
+Only then re-run the dry-run and run the gated collapse with `--backup`.

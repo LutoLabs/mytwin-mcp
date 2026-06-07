@@ -17,7 +17,33 @@
 import { methodGuard, runTwin, HttpError } from '../../lib/twin-api.js';
 import { getDB } from '../../lib/supabase.js';
 
-const SELECT = 'id, user_id, type, title, content, tags, source_ref, provenance, created_at, updated_at, visibility';
+// '*' (not an explicit list) so the new 030 columns (source_id, chunk_index,
+// source_type) flow through when present and the endpoint never 500s on a
+// pre-030 schema where they don't exist yet.
+const SELECT = '*';
+
+// Attach part_count + document_id to document/url PARENT rows (chunk_index 0) so
+// the library can render a document as one card showing how many parts it holds.
+// Best-effort: any error leaves the rows unenriched (rendered as a plain card).
+async function enrichDocumentParents(db, items, ctx) {
+  const parentSourceIds = items.filter(i => i.chunk_index === 0 && i.source_id).map(i => i.source_id);
+  if (!parentSourceIds.length) return;
+  try {
+    const { data: parts } = await db
+      .from('knowledge')
+      .select('source_id')
+      .eq('tenant_id', ctx.tenantId).eq('user_id', ctx.userId)
+      .in('source_id', parentSourceIds).gte('chunk_index', 1);
+    const counts = Object.create(null);
+    for (const p of parts || []) counts[p.source_id] = (counts[p.source_id] || 0) + 1;
+    for (const it of items) {
+      if (it.chunk_index === 0 && it.source_id) {
+        it.part_count  = counts[it.source_id] || 0;
+        it.document_id = it.source_id;
+      }
+    }
+  } catch { /* part_count is best-effort */ }
+}
 
 // Attach upvote_count + viewer_has_voted to a list of items.
 // Fault-tolerant: a missing upvotes table (pre-migration) silently returns 0s.
@@ -86,7 +112,6 @@ export default async function handler(req, res) {
       // If that view is absent (pre-migration 023) we fall back to recency so
       // the library never breaks.
       let useMostUpvoted = sort === 'most-upvoted';
-      let q;
 
       if (useMostUpvoted) {
         // Probe whether the view exists by attempting the query; on error we
@@ -108,33 +133,44 @@ export default async function handler(req, res) {
         useMostUpvoted = false;
       }
 
-      q = db
-        .from('knowledge')
-        .select(SELECT, { count: 'exact' })
-        .eq('user_id', ctx.userId)
-        .eq('tenant_id', ctx.tenantId);
+      const applyOrder = (query) => {
+        switch (useMostUpvoted ? 'recent' : sort) {
+          case 'alphabetical':
+            return query.order('title', { ascending: true, nullsFirst: false });
+          case 'by-type':
+            return query.order('type', { ascending: true }).order('created_at', { ascending: false });
+          default:
+            return query.order('created_at', { ascending: false });
+        }
+      };
 
-      if (type && type !== 'all') q = q.eq('type', type);
-      if (visibility === 'private' || visibility === 'sharable') q = q.eq('visibility', visibility);
+      // Collapse documents in the DEFAULT browse view only: hide document/url
+      // PARTS (chunk_index >= 1) so each document shows as ONE representative card
+      // (its chunk_index 0 parent). Voice items stay flat (they have no parent);
+      // standalone items (chunk_index null) are unaffected. A type or visibility
+      // filter means the user is drilling in, so parts show flat — otherwise a
+      // "knowledge" filter would hide document chunks whose parent is "document".
+      const collapse = (!type || type === 'all') && visibility !== 'private' && visibility !== 'sharable';
 
-      switch (useMostUpvoted ? 'recent' : sort) {
-        case 'alphabetical':
-          q = q.order('title', { ascending: true, nullsFirst: false });
-          break;
-        case 'by-type':
-          q = q.order('type', { ascending: true })
-               .order('created_at', { ascending: false });
-          break;
-        default:
-          q = q.order('created_at', { ascending: false });
+      const buildList = (withCollapse) => {
+        let query = db.from('knowledge').select(SELECT, { count: 'exact' })
+          .eq('user_id', ctx.userId).eq('tenant_id', ctx.tenantId);
+        if (type && type !== 'all') query = query.eq('type', type);
+        if (visibility === 'private' || visibility === 'sharable') query = query.eq('visibility', visibility);
+        if (withCollapse) query = query.or('chunk_index.is.null,chunk_index.eq.0,source_type.eq.voice-note');
+        return applyOrder(query).range(offset, offset + limit - 1);
+      };
+
+      let { data, error, count } = await buildList(collapse);
+      // Resilient: pre-030 the chunk_index column doesn't exist, so the collapse
+      // filter errors. Retry once without it so the library still renders (flat).
+      if (error && collapse && /chunk_index|source_id|column|schema cache/i.test(error.message || '')) {
+        ({ data, error, count } = await buildList(false));
       }
-
-      q = q.range(offset, offset + limit - 1);
-
-      const { data, error, count } = await q;
       if (error) throw new Error(error.message);
 
       await enrichItems(db, data ?? [], ctx.userId);
+      await enrichDocumentParents(db, data ?? [], ctx);
 
       return { items: data ?? [], total: count ?? 0, offset, limit };
     },

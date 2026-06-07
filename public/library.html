@@ -1288,6 +1288,9 @@ body.embed { background: var(--paper); }
   <button id="detail-download-btn" class="detail-download-btn" title="Download this item as a Markdown file" hidden>
     ↓ Download .md
   </button>
+  <button id="detail-download-original-btn" class="detail-download-btn" title="Download the original uploaded file" hidden>
+    ↓ Original file
+  </button>
   <span id="editor-save-status" class="editor-save-status" aria-live="polite"></span>
 
   <!-- Part navigation - shown only for multi-part documents -->
@@ -2131,6 +2134,12 @@ function makeCard(item) {
     meta.appendChild(el('span', 'card-meta-sep', '·'));
     meta.appendChild(el('span', 'vis-badge vis-sharable', '🔗 Shared'));
   }
+  // Document representative (the chunk_index 0 parent): show how many parts it
+  // holds. Opening the card lands on the document summary with its parts nested.
+  if (item.part_count) {
+    meta.appendChild(el('span', 'card-meta-sep', '·'));
+    meta.appendChild(el('span', 'card-meta-parts', '📄 ' + item.part_count + ' part' + (item.part_count !== 1 ? 's' : '')));
+  }
   // Upvote button - only shown when the user is signed in (token present)
   if (state.token || document.cookie.includes('sb-')) {
     meta.appendChild(el('span', 'card-meta-sep', '·'));
@@ -2386,9 +2395,40 @@ function renderPartsNav(item, siblings) {
   const partsEl = eid('detail-parts');
   if (!siblings || siblings.length === 0) { partsEl.hidden = true; return; }
 
-  // All parts = siblings + current, sorted by title
-  const allParts = [...siblings, { id: item.id, title: item.title || '(untitled)', _current: true }]
-    .sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+  // Order by chunk_index (parts read 1..N, parent is 0), falling back to title.
+  const byOrder = (a, b) => {
+    const ca = a.chunk_index, cb = b.chunk_index;
+    if (ca != null && cb != null && ca !== cb) return ca - cb;
+    if (ca != null && cb == null) return -1;
+    if (ca == null && cb != null) return 1;
+    return (a.title || '').localeCompare(b.title || '');
+  };
+
+  // PARENT view: the opened item IS the document summary (chunk_index 0). List
+  // every part in order as a nested, openable list, not a "Part X of Y" strip.
+  if (item.chunk_index === 0) {
+    const parts = [...siblings].filter(s => (s.chunk_index ?? 1) >= 1).sort(byOrder);
+    if (!parts.length) { partsEl.hidden = true; return; }
+    partsEl.innerHTML = '';
+    partsEl.appendChild(el('div', 'parts-source-label',
+      `This document has ${parts.length} part${parts.length !== 1 ? 's' : ''} · ${item.source_ref || ''}`));
+    const list = el('div', 'parts-strip');
+    parts.forEach((p, i) => {
+      const t = p.title || ('Part ' + (i + 1));
+      const short = t.length > 40 ? t.slice(0, 38) + '…' : t;
+      const a = el('a', 'part-link', short);
+      a.href = '/twin/library?id=' + p.id;
+      a.title = t;
+      list.appendChild(a);
+    });
+    partsEl.appendChild(list);
+    partsEl.hidden = false;
+    return;
+  }
+
+  // PART view: windowed "Part X of Y" strip, ordered by chunk_index.
+  const allParts = [...siblings, { id: item.id, title: item.title || '(untitled)', chunk_index: item.chunk_index, _current: true }]
+    .sort(byOrder);
 
   const currentIdx = allParts.findIndex(p => p._current);
   const total = allParts.length;
@@ -2520,11 +2560,31 @@ async function loadDetail(id) {
     '<p class="detail-related-loading">Finding related items…</p>';
 
   try {
-    // Phase 1: Fast DB fetch - item + siblings + concept pages
-    const { item, siblings, concept_pages } = await fetchItem(id);
+    // Phase 1: Fast DB fetch - item + siblings + concept pages (+ original binary)
+    const { item, siblings, concept_pages, original } = await fetchItem(id);
     state.currentItem = item;
 
     document.title = cardTitle(item) + ' · Library · MyAITwin';
+
+    // Original-file download (Phase 4): a SEPARATE button from "Download as
+    // Markdown" (which exports the extracted text). Shown only when a stored
+    // original binary exists; fetches a short-lived signed url on click.
+    const origDlBtn = eid('detail-download-original-btn');
+    if (origDlBtn) {
+      origDlBtn.hidden = true;
+      origDlBtn.onclick = null;
+      if (original && original.available) {
+        origDlBtn.hidden = false;
+        origDlBtn.onclick = async () => {
+          origDlBtn.disabled = true;
+          try {
+            const r = await api('/api/twin/document-original?source_id=' + encodeURIComponent(original.source_id));
+            if (r && r.download_url) window.location.href = r.download_url;
+          } catch (e) { console.warn('[download] failed:', e && e.message); }
+          finally { origDlBtn.disabled = false; }
+        };
+      }
+    }
 
     // Breadcrumb
     eid('bc-type').textContent  = typeLabel(item.type);
