@@ -11,6 +11,7 @@
 
 import { methodGuard, runTwin } from '../../lib/twin-api.js';
 import { compileConceptsForTenant } from '../../lib/compile-concepts.js';
+import { safeUpstreamError } from '../../lib/errors.js';
 
 export default async function handler(req, res) {
   if (!methodGuard(req, res, ['POST'])) return;
@@ -22,14 +23,15 @@ export default async function handler(req, res) {
         const summary = await compileConceptsForTenant({
           userId:   ctx.userId,
           tenantId: ctx.tenantId,
+          mode:     'on-demand',
         });
         return { ok: true, ...summary };
       } catch (err) {
         // compileConceptsForTenant has already written a 'failed' background_log
-        // entry. Return a structured body (HTTP 200) so the UI can show the
-        // error instead of an opaque 500.
-        console.error('[compile-concepts] run failed:', err.message);
-        return { ok: false, error: err.message };
+        // entry. Return a structured body (HTTP 200) with a typed code + safe
+        // message so the UI can surface it. Never forward the raw error text.
+        const { code, message } = safeUpstreamError(err, 'compile-concepts');
+        return { ok: false, code, error: message };
       }
     },
   });

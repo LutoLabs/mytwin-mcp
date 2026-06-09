@@ -1762,6 +1762,19 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Client-safe copy for the typed error codes the server sends. Mirrors
+// ERROR_MESSAGES in lib/errors.js — the server never sends upstream text, so
+// we render one short line per code and nothing else. Keep the two in sync.
+const ERROR_COPY = {
+  upstream_unavailable: 'Your twin could not answer just now. Try again in a moment.',
+  rate_limited:         'Too many requests at once. Give it a few seconds.',
+  payload_too_large:    'That was too much to take in at once. Try a shorter message.',
+  unknown:              'Your twin could not answer just now. Try again in a moment.',
+};
+function errorCopy(code) {
+  return ERROR_COPY[code] || ERROR_COPY.unknown;
+}
+
 // Sanitiser for twin chat messages. The model is instructed not to use
 // em/en dashes, but enforce client-side anyway. Markdown is now allowed
 // (lists, code, etc.) — so we do NOT touch hyphen-as-dash patterns, since
@@ -2385,8 +2398,12 @@ $inputForm.addEventListener('submit', async (e) => {
             `You've hit the free limit. <a href="#" class="claim-trigger">Sign up</a> to keep your twin.`,
             { cap: true }
           );
+        } else if (data.status === 429 && data.error) {
+          // App-level cap (a vetted message from capExceededBody), safe to show.
+          renderSystem(escapeHtml(data.error), { cap: true });
         } else {
-          renderSystem('Something fell over: ' + escapeHtml(data.message || 'unknown error') + '. Try again.');
+          // Typed code only — never any upstream text.
+          renderSystem(escapeHtml(errorCopy(data.code)));
         }
       } else if (event === 'done') {
         // Finalise the twin bubble — strip cursor, render citation links, save to history
@@ -2433,7 +2450,9 @@ $inputForm.addEventListener('submit', async (e) => {
         { cap: true }
       );
     } else {
-      renderSystem('Something fell over: ' + escapeHtml(err.message) + '. Try again.');
+      // Failure before the stream opened. err.body may carry a typed code; we
+      // never render err.message (it can hold upstream text).
+      renderSystem(escapeHtml(errorCopy(err.body?.code)));
     }
   } finally {
     setStreamingUI(false);

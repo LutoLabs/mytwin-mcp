@@ -65,7 +65,13 @@ export default async function handler(req, res) {
         });
         transcript = result.text || '';
       } catch (err) {
-        throw new UserError(`Transcription failed: ${err?.message || 'unknown error'}`);
+        // Never forward the provider's error text to the client. Log the detail
+        // server-side; show one short, safe line.
+        console.error('[voice/transcribe] upstream error', {
+          message: err?.message,
+          status:  err?.status ?? null,
+        });
+        throw new UserError('Could not transcribe that audio. Try again in a moment.');
       }
 
       return { transcript };

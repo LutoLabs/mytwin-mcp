@@ -1481,6 +1481,18 @@ async function api(path, opts = {}) {
   return body;
 }
 
+// Client-safe copy for the typed error codes the server sends. Mirrors
+// ERROR_MESSAGES in lib/errors.js — never render an upstream message.
+const ERROR_COPY = {
+  upstream_unavailable: 'Could not compile your wiki just now. Try again in a moment.',
+  rate_limited:         'Too many requests at once. Give it a few seconds.',
+  payload_too_large:    'That was too much to take in at once.',
+  unknown:              'Could not compile your wiki just now. Try again in a moment.',
+};
+function errorCopy(code) {
+  return ERROR_COPY[code] || ERROR_COPY.unknown;
+}
+
 function fetchStats()       { return api('/api/library/stats'); }
 function fetchConcepts()    { return api('/api/library/concepts'); }
 function fetchLeaderboard() { return api('/api/library/leaderboard'); }
@@ -2044,11 +2056,9 @@ function renderWikiStatus(container, data) {
 
   let headline, sub, showCompile;
   if (failed) {
-    const errMsg = cs.meta && cs.meta.error ? String(cs.meta.error) : '';
+    // The stored error can hold raw upstream text. Show a fixed safe line.
     headline = 'Compilation ran into a problem.';
-    sub = errMsg
-      ? 'The last run failed: ' + errMsg.slice(0, 160)
-      : 'The last compilation run failed before it finished.';
+    sub = 'The last run did not finish. Try compiling again.';
     showCompile = items >= 2;
   } else if (items < 2) {
     headline = 'Not enough to compile yet.';
@@ -2084,10 +2094,11 @@ async function runCompileNow(btn, container) {
       await loadConceptSections();   // re-fetch + re-render freshly written pages
       return;
     }
-    const msg = (res && res.error) ? String(res.error) : 'Compilation did not produce any pages.';
-    container.appendChild(el('div', 'wiki-status-error', msg.slice(0, 200)));
+    // The server returns a typed code on failure, never raw error text.
+    const msg = (res && res.code) ? errorCopy(res.code) : 'Compilation did not produce any pages.';
+    container.appendChild(el('div', 'wiki-status-error', msg));
   } catch (err) {
-    container.appendChild(el('div', 'wiki-status-error', err && err.message ? err.message : 'Compilation request failed.'));
+    container.appendChild(el('div', 'wiki-status-error', errorCopy(err && err.code)));
   } finally {
     if (document.body.contains(btn)) { btn.disabled = false; btn.textContent = 'Compile now'; }
   }

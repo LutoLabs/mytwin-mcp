@@ -23,6 +23,7 @@ import { searchTwin, searchForCreation, getDocument } from '../../tools/retrieva
 import { listRecent }                           from '../../tools/management.js';
 import { bulkContribute }                       from '../../tools/workspaces.js';
 import { streamTwin, callFastJson }             from '../../lib/anthropic.js';
+import { safeUpstreamError }                    from '../../lib/errors.js';
 import { getConceptContext }                    from '../../lib/concept-context.js';
 import { getRecentBackgroundLog }               from '../../lib/background-log.js';
 import { getDB }                                from '../../lib/supabase.js';
@@ -909,12 +910,12 @@ export default async function handler(req, res) {
     sse.send('done', { usage: final.usage });
     sse.close();
   } catch (err) {
-    console.error('[turn] error:', {
-      message: err?.message,
-      stack: err?.stack?.split('\n').slice(0, 4).join(' | '),
-    });
+    // Map to a typed code and log the full detail (with request id) server-side.
+    // The stream is already open (status 200 sent), so we can only signal the
+    // failure via the error event — never the upstream message text.
+    const { code } = safeUpstreamError(err, 'turn');
     try {
-      sse.send('error', { message: err?.message || 'internal error' });
+      sse.send('error', { code });
       sse.send('done', {});
       sse.close();
     } catch { /* res may already be closed */ }
