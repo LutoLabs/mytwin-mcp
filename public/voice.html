@@ -186,7 +186,9 @@
   .note-act.primary { background: var(--yellow); }
   .note-act.in-twin { background: var(--mint); cursor: default; }
   .note-act.in-twin:hover { transform: none; box-shadow: none; }
-  .note-act.danger { color: #c0392b; border-color: #c0392b; }
+  /* Destructive action sits apart from the rest of the row (misclick guard:
+     it would otherwise be adjacent to Share, one slot from Add to twin). */
+  .note-act.danger { color: #c0392b; border-color: #c0392b; margin-left: auto; }
   .note-act.icon-only { padding: 6px; }
 
   /* ── Empty state ──────────────────────────────────────────────────────── */
@@ -236,6 +238,8 @@
   .act-btn:hover { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--ink); }
   .act-btn svg { width: 15px; height: 15px; }
   .act-btn.primary { background: var(--yellow); color: var(--ink); }
+  /* Same misclick guard as the list rows: keep Delete apart from the rest. */
+  .act-btn.danger { color: #c0392b; border-color: #c0392b; margin-left: auto; }
   .act-btn.danger:hover { background: #c0392b; color: #fff; }
   .transcript-box {
     background: var(--card); border: 1.5px solid var(--ink); border-radius: 12px;

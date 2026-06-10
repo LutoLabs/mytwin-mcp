@@ -1395,7 +1395,7 @@ async function openGroupsModal(ws) {
       const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:13px;padding:2px 0';
       row.appendChild(Object.assign(document.createElement('span'), { className: 'ws-memail', textContent: m.email || m.user_id }));
       const x = document.createElement('button'); x.className = 'ws-x'; x.textContent = '×'; x.title = 'Remove from group';
-      x.onclick = async () => { x.disabled = true; try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/groups/' + encodeURIComponent(g.id) + '/members', { method: 'DELETE', body: JSON.stringify({ user_id: m.user_id }) }); await refresh(); } catch (e) { msg.textContent = 'Could not remove: ' + (e.message || ''); x.disabled = false; } };
+      x.onclick = async () => { if (!confirm('Remove ' + (m.email || 'this member') + ' from this teamspace? They keep their workspace access.')) return; x.disabled = true; try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/groups/' + encodeURIComponent(g.id) + '/members', { method: 'DELETE', body: JSON.stringify({ user_id: m.user_id }) }); await refresh(); } catch (e) { msg.textContent = 'Could not remove: ' + (e.message || ''); x.disabled = false; } };
       row.appendChild(x); wrap.appendChild(row);
     });
     const candidates = wsMembers.filter(m => !inSet.has(m.user_id));
@@ -1422,7 +1422,7 @@ async function openGroupsModal(ws) {
       const nm = document.createElement('span'); nm.className = 'ws-memail'; nm.style.fontWeight = '600'; nm.textContent = g.name; head.appendChild(nm);
       head.appendChild(Object.assign(document.createElement('span'), { className: 'ws-role', textContent: g.member_count + ' member' + (g.member_count !== 1 ? 's' : '') }));
       const del = document.createElement('button'); del.className = 'ws-x'; del.textContent = '×'; del.title = 'Delete group';
-      del.onclick = async () => { del.disabled = true; try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/groups/' + encodeURIComponent(g.id), { method: 'DELETE' }); await refresh(); } catch (e) { msg.textContent = 'Could not delete: ' + (e.message || ''); del.disabled = false; } };
+      del.onclick = async () => { if (!confirm('Delete the teamspace "' + g.name + '"? Members keep their workspace access. This cannot be undone.')) return; del.disabled = true; try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/groups/' + encodeURIComponent(g.id), { method: 'DELETE' }); await refresh(); } catch (e) { msg.textContent = 'Could not delete: ' + (e.message || ''); del.disabled = false; } };
       head.appendChild(del); block.appendChild(head);
       const memberWrap = document.createElement('div'); memberWrap.style.cssText = 'margin-top:6px'; block.appendChild(memberWrap);
       loadGroupMembers(g, memberWrap);
@@ -1503,6 +1503,7 @@ async function openWorkspaceManage(ws) {
       if (data.can_manage && m.role !== 'owner') {
         const x = document.createElement('button'); x.className = 'ws-x'; x.textContent = '×'; x.title = 'Remove';
         x.onclick = async () => {
+          if (!confirm('Remove ' + (m.email || 'this member') + ' from this workspace? They lose access to its shared items.')) return;
           x.disabled = true;
           try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/members/' + encodeURIComponent(m.user_id), { method: 'DELETE' }); await refresh(); }
           catch (e) { msg.textContent = 'Could not remove: ' + (e.message || ''); x.disabled = false; }
@@ -1522,6 +1523,7 @@ async function openWorkspaceManage(ws) {
         if (data.can_manage) {
           const x = document.createElement('button'); x.className = 'ws-x'; x.textContent = '×'; x.title = 'Cancel invitation';
           x.onclick = async () => {
+            if (!confirm('Cancel the invitation to ' + p.email + '?')) return;
             x.disabled = true;
             try { await wsFetch('/api/workspaces/' + encodeURIComponent(ws.id) + '/invitations/' + encodeURIComponent(p.invitation_id), { method: 'DELETE' }); await refresh(); }
             catch (e) { msg.textContent = 'Could not cancel: ' + (e.message || ''); x.disabled = false; }
