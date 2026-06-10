@@ -113,20 +113,8 @@
 </head>
 <body>
 
-<header class="site-header">
-  <div class="header-inner">
-    <a href="/twin" class="logo" aria-label="MyAITwin home">
-      <span class="logo-mark"></span>
-      <span class="logo-text">
-        <span class="logo-name">MyAITwin</span>
-        <span class="logo-by">by Luto</span>
-      </span>
-    </a>
-    <div class="header-right">
-      <a href="/twin/library" class="signin-link">Your twin →</a>
-    </div>
-  </div>
-</header>
+<!-- Shared site header (site-header.js fills this; see public/site-header.js). -->
+<header class="site-header" id="app-site-header"></header>
 
 <nav class="surface-nav" id="app-surface-nav" aria-label="Main"></nav>
 
@@ -330,6 +318,7 @@ async function doDisconnect(id, label) {
 (async () => { await ensureSession(); await load(); })();
 </script>
   <script src="/brand.js" defer></script>
+  <script src="/site-header.js" defer></script>
   <script src="/surface-nav.js" defer></script>
 </body>
 </html>

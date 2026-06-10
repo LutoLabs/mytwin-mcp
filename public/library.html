@@ -1079,22 +1079,9 @@ body.embed { background: var(--paper); }
 <body>
 
 <!-- ── Masthead ─────────────────────────────────────────────────────────── -->
-<header class="site-header">
-  <div class="header-inner">
-    <a href="/twin" class="logo">
-      <span class="logo-mark"></span>
-      <span class="logo-text">
-        <span class="logo-name">MyAITwin</span>
-        <span class="logo-by">by Luto</span>
-      </span>
-    </a>
-    <div class="header-right">
-      <a href="/create" class="signin-link" id="lib-signin-link">Sign in</a>
-      <a href="/twin/profile" class="signin-link" id="lib-account-link" hidden></a>
-      <a href="/twin/profile#workspaces" class="signin-link" id="lib-workspaces-link" hidden>Workspaces</a>
-    </div>
-  </div>
-</header>
+<!-- Shared site header (site-header.js fills this; see public/site-header.js).
+     Kept classed .site-header so the body.embed hide rule still applies. -->
+<header class="site-header" id="app-site-header"></header>
 
 <!-- Persistent action bar (replaces the old CHAT · BRAIN · VOICE toggle): the
      three things you do with your twin, one hop from anywhere. -->
@@ -3440,6 +3427,7 @@ async function syncHeaderAuth() {
 </script>
 <script src="/share-modal.js"></script>
   <script src="/brand.js" defer></script>
+  <script src="/site-header.js" defer></script>
   <script src="/surface-nav.js" defer></script>
 </body>
 </html>

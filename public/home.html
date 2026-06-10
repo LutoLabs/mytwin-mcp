@@ -917,8 +917,8 @@
     });
     return { open: open, close: close };
   }
-  wireModal('claim-modal', 'save-twin-btn', 'claim-close', 'claim-form', 'claim-idle', 'claim-sent', 'claim-error', '/api/auth/claim', true);
-  wireModal('signin-modal', 'signin-link-btn', 'signin-close', 'signin-form', 'signin-idle', 'signin-sent', 'signin-error', '/api/auth/signin', false);
+  var claimModalCtl  = wireModal('claim-modal', 'save-twin-btn', 'claim-close', 'claim-form', 'claim-idle', 'claim-sent', 'claim-error', '/api/auth/claim', true);
+  var signinModalCtl = wireModal('signin-modal', 'signin-link-btn', 'signin-close', 'signin-form', 'signin-idle', 'signin-sent', 'signin-error', '/api/auth/signin', false);
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { $('claim-modal').hidden = true; $('signin-modal').hidden = true; } });
 
   // ── boot ─────────────────────────────────────────────────────────────────
@@ -926,6 +926,10 @@
     // Strip post-auth params left by claim/sign-in redirects.
     var params = new URLSearchParams(location.search);
     if (params.get('claimed') === '1' || params.get('signedin') === '1') history.replaceState({}, '', '/twin');
+    // The shared header on other pages routes anonymous Sign in / Save your
+    // twin here; open the matching modal on arrival (anon visitors only).
+    var wantModal = params.get('signin') === '1' ? 'signin' : (params.get('save') === '1' ? 'save' : null);
+    if (wantModal) history.replaceState({}, '', '/twin');
 
     // Instant identity guess from the last session so a signed-in owner never
     // flashes the anonymous header; validateSession confirms or corrects it (A2).
@@ -938,8 +942,16 @@
       return (SEAM || state.isAuth) ? null : ensureSession();
     }).then(function () {
       updateHeader();
+      if (wantModal && !state.isAuth) (wantModal === 'signin' ? signinModalCtl : claimModalCtl).open();
       loadSpaces();        // populate the space switcher (Personal / Shared / workspaces)
-      loadCurrentSpace();  // default space = Personal
+      // The shared header on other pages stashes a chosen space here; land
+      // scoped to it. Default space = Personal.
+      var stash = null;
+      try {
+        stash = JSON.parse(sessionStorage.getItem('mt_home_space') || 'null');
+        sessionStorage.removeItem('mt_home_space');
+      } catch (e) {}
+      if (stash && stash.kind) { selectSpace(stash); } else { loadCurrentSpace(); }
       // setTimeout (not rAF) so the page still reveals if first-loaded in a
       // background tab, where rAF is paused.
       setTimeout(function () { $('page').classList.add('in'); }, 0);

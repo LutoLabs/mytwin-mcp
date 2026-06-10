@@ -25,6 +25,9 @@
   --card:        #0a0c1a;
   --muted:       #8088bb;
   --yellow-deep: #FFD400;
+  /* The shared site header (site-header.js) reads this; without it the header
+     falls back to the dashboard's cream background, wrong on this dark page. */
+  --header-bg:   rgba(9,11,24,0.92);
 }
 
 html, body {
@@ -318,18 +321,8 @@ body.grabbing, body.grabbing #hypergraph-container #scene canvas { cursor: grabb
 </head>
 <body>
 
-<header class="site-header">
-  <div class="header-inner">
-    <a href="/twin" class="logo">
-      <span class="logo-mark"></span>
-      <span class="logo-text">
-        <span class="logo-name">MyAITwin</span>
-        <span class="logo-by">by Luto</span>
-      </span>
-    </a>
-    <span class="header-spacer"></span>
-    </div>
-</header>
+<!-- Shared site header (site-header.js fills this; see public/site-header.js). -->
+<header class="site-header" id="app-site-header"></header>
 <nav class="surface-nav" id="app-surface-nav" aria-label="Main"></nav>
 
 <!-- Hypergraph stage -->
@@ -1602,6 +1595,7 @@ document.getElementById('ws-create-btn')?.addEventListener('click', async () => 
 </script>
 
   <script src="/brand.js" defer></script>
+  <script src="/site-header.js" defer></script>
   <script src="/surface-nav.js" defer></script>
 </body>
 </html>

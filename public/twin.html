@@ -1223,38 +1223,9 @@
 </head>
 <body>
 
-<header class="site-header">
-  <div class="header-inner">
-    <a href="/twin" class="logo">
-      <span class="logo-mark"></span>
-      <span class="logo-text">
-        <span class="logo-name">MyAITwin</span>
-        <span class="logo-by">by Luto</span>
-      </span>
-    </a>
-    <!-- Anonymous state -->
-    <div id="anon-header-btns" class="header-anon-btns">
-      <button type="button" class="signin-link" id="signin-link-btn">Sign in</button>
-      <button type="button" class="save-twin-btn" id="save-twin-btn">Save your twin →</button>
-    </div>
-
-    <!-- Authenticated state (hidden until session validated) -->
-    <div id="account-indicator" class="account-indicator" hidden>
-      <button type="button" class="account-trigger" id="account-trigger" aria-haspopup="true" aria-expanded="false">
-        <div class="acct-avatar" id="acct-avatar" aria-hidden="true"></div>
-        <span class="acct-email" id="acct-email"></span>
-        <svg class="acct-caret" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-          <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
-      <div id="account-dropdown" class="account-dropdown" hidden role="menu">
-        <div class="acct-dropdown-email" id="acct-dropdown-email"></div>
-        <a href="/twin/profile" class="acct-dropdown-item" role="menuitem">Profile</a>
-        <button type="button" id="sign-out-btn" class="acct-dropdown-item" role="menuitem">Sign out</button>
-      </div>
-    </div>
-  </div>
-</header>
+<!-- Shared site header (site-header.js fills this; see public/site-header.js).
+     This page's sign-in / claim modals are wired in via window.__HEADER_HOOKS__. -->
+<header class="site-header" id="app-site-header"></header>
 
 <!-- ── Claim modal — "Save your twin" ──────────────────────────────────────── -->
 <div id="claim-modal" class="claim-overlay" hidden>
@@ -1679,6 +1650,10 @@ function hideSigninModal() {
 document.getElementById('signin-link-btn')?.addEventListener('click', showSigninModal);
 document.getElementById('signin-modal-close')?.addEventListener('click', hideSigninModal);
 $signinModal?.addEventListener('click', e => { if (e.target === $signinModal) hideSigninModal(); });
+
+// The shared header (site-header.js) calls these instead of navigating to the
+// dashboard, so this page's own modals open in place.
+window.__HEADER_HOOKS__ = { signIn: showSigninModal, saveTwin: showClaimModal };
 
 $signinForm?.addEventListener('submit', async e => {
   e.preventDefault();
@@ -3174,6 +3149,7 @@ async function handleShareInvite(token) {
 <script src="/share-modal.js"></script>
 
   <script src="/brand.js" defer></script>
+  <script src="/site-header.js" defer></script>
   <script src="/surface-nav.js" defer></script>
 </body>
 </html>
