@@ -295,6 +295,13 @@ header.site-header {
   max-width: 1280px; margin: 0 auto;
   padding: 32px 32px 80px;
 }
+/* Shared-with-you sections sit above the items section and must share its
+   container, or their grids render full-bleed and a lone shared card reads
+   as a stray card floating above the ITEMS heading. */
+.shared-section {
+  max-width: 1280px; margin: 0 auto;
+  padding: 32px 32px 0;
+}
 .section-head {
   margin-bottom: 24px;
 }
@@ -781,6 +788,7 @@ header.site-header {
   .lib-hero { padding: 32px 16px 16px; }
   .concept-section { padding: 24px 16px 0; }
   .items-section { padding: 24px 16px 60px; }
+  .shared-section { padding: 24px 16px 0; }
   #view-loading { padding: 32px 16px 60px; }
   #view-detail { padding: 32px 16px 60px; }
   .chips-divider { display: none; }
@@ -1194,7 +1202,7 @@ body.embed { background: var(--paper); }
   </section>
 
   <!-- Shared with you (P1.4) - items other people shared with this user -->
-  <section class="shared-section" id="shared-section" hidden style="margin-bottom:28px;">
+  <section class="shared-section" id="shared-section" hidden>
     <div class="section-head">
       <span class="section-label" id="shared-label">Shared with you</span>
     </div>
@@ -1202,7 +1210,7 @@ body.embed { background: var(--paper); }
   </section>
 
   <!-- Shared with you (workspaces) - org workspaces this member belongs to, grouped -->
-  <section class="shared-section" id="ws-shared-section" hidden style="margin-bottom:28px;">
+  <section class="shared-section" id="ws-shared-section" hidden>
     <div class="section-head">
       <span class="section-label" id="ws-shared-label">Shared with you</span>
     </div>
